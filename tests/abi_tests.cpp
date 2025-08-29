@@ -106,24 +106,11 @@ inline std::string addr_to_hex_string(const std::array<uint8_t, 20>& addr) {
 } // namespace util
 
 // ─────────────────────────────────────────────────────────────────────────────
-// One-value encoder (return-only; no 4-byte selector) + round-trip helper
+// Round-trip helpers using generic ABI functions from abi.h
 // ─────────────────────────────────────────────────────────────────────────────
 namespace abi_test {
 
-template<class Schema, class V>
-size_t encoded_size_value(const V& v) {
-  return 32 * abi::traits<Schema>::head_words + abi::traits<Schema>::tail_size(v);
-}
-
-template<class Schema, class V>
-bool encode_value_into(uint8_t* out, size_t cap, const V& v, abi::Error* e=nullptr) {
-  const size_t need = encoded_size_value<Schema>(v);
-  if (cap < need) { if (e) e->message = "encode_value_into: buffer too small"; return false; }
-  const size_t base = 32 * abi::traits<Schema>::head_words;
-  abi::traits<Schema>::encode_head(out, 0, v, base);
-  abi::traits<Schema>::encode_tail(out, base, v);
-  return true;
-}
+// Use the new generic functions from abi.h instead of custom implementations
 
 template<class RetSchema>
 bool roundtrip_return_hex(const std::string& hex) {
@@ -138,8 +125,9 @@ bool roundtrip_return_hex(const std::string& hex) {
     return false;
   }
 
-  std::vector<uint8_t> out(encoded_size_value<RetSchema>(v));
-  if (!encode_value_into<RetSchema>(out.data(), out.size(), v, &err)) {
+  const size_t size = abi::encoded_size_data<RetSchema>(v);
+  std::vector<uint8_t> out(size);
+  if (!abi::encode_data_into<RetSchema>(out.data(), out.size(), v, &err)) {
     std::cerr << "re-encode failed: " << err.message << "\n";
     return false;
   }
@@ -160,10 +148,10 @@ bool roundtrip_value(const typename abi::value_of<Schema>::type& v){
   using V = typename abi::value_of<Schema>::type;
   abi::Error err;
 
-  const size_t need = abi_test::encoded_size_value<Schema>(v);
+  const size_t need = abi::encoded_size_data<Schema>(v);
   std::vector<uint8_t> buf(need, 0);
 
-  if (!abi_test::encode_value_into<Schema>(buf.data(), buf.size(), v, &err)) {
+  if (!abi::encode_data_into<Schema>(buf.data(), buf.size(), v, &err)) {
     std::cerr << "encode failed: " << err.message << "\n";
     return false;
   }
@@ -729,10 +717,10 @@ int main() try {
         using TD = abi::tuple<abi::bool_t, abi::bytes>;
         auto val = std::make_tuple(true, std::vector<uint8_t>{0xAA,0xBB});
         // encode as value (will produce top pointer + body)
-        size_t need = abi_test::encoded_size_value<TD>(val);
+        size_t need = abi::encoded_size_data<TD>(val);
         std::vector<uint8_t> buf(need, 0);
         abi::Error err;
-        if(!abi_test::encode_value_into<TD>(buf.data(), buf.size(), val, &err)) return false;
+        if(!abi::encode_data_into<TD>(buf.data(), buf.size(), val, &err)) return false;
 
         // 3a) Proper path: decode_from (should succeed)
         typename abi::value_of<TD>::type out{};
@@ -751,7 +739,7 @@ int main() try {
         std::vector<uint8_t> v(33, 0xEE);
         abi::Error err;
         uint8_t tiny[64]; // definitely too small (needs 32 + pad(33)=64 → actually 96 total with head)
-        return !abi_test::encode_value_into<Sch>(tiny, sizeof(tiny), v, &err);
+        return !abi::encode_data_into<Sch>(tiny, sizeof(tiny), v, &err);
       })());
   }
   

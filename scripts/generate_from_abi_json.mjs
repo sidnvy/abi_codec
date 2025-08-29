@@ -12,6 +12,88 @@ const abiFiles = {
   "Multicall": "abis/multicall.json"
 };
 
+// ---------- Named struct extraction and management ----------
+
+// Global registry of named structs found in ABI
+const namedStructs = new Map();
+
+// Extract named struct information from ABI
+function extractNamedStructs(abi, contractName) {
+  for (const item of abi) {
+    if (item.type === 'function') {
+      // Check inputs for named structs
+      if (item.inputs) {
+        for (const input of item.inputs) {
+          extractNamedStructFromParam(input, contractName);
+        }
+      }
+      // Check outputs for named structs
+      if (item.outputs) {
+        for (const output of item.outputs) {
+          extractNamedStructFromParam(output, contractName);
+        }
+      }
+    }
+  }
+}
+
+function extractNamedStructFromParam(param, contractName) {
+  // Handle array types that contain structs
+  if (param.type && param.type.endsWith('[]') && param.internalType) {
+    // Extract element type from array
+    const elementType = param.type.slice(0, -2); // remove []
+    if (elementType === 'tuple' && param.components && param.internalType.includes('struct')) {
+      const match = param.internalType.match(/struct\s+([^.]+)\.(.+)\[\]/);
+      if (match) {
+        const [, contract, structName] = match;
+        const fullName = `${contract}.${structName}`;
+
+        if (!namedStructs.has(fullName)) {
+          namedStructs.set(fullName, {
+            contract,
+            name: structName,
+            fields: param.components.map(comp => ({
+              name: comp.name,
+              type: comp.type,
+              internalType: comp.internalType,
+              components: comp.components
+            }))
+          });
+        }
+      }
+    }
+  }
+
+  if (param.type === 'tuple' && param.components && param.internalType) {
+    // Extract struct name from internalType like "struct ContractName.StructName"
+    const match = param.internalType.match(/struct\s+([^.]+)\.(.+)/);
+    if (match) {
+      const [, contract, structName] = match;
+      const fullName = `${contract}.${structName}`;
+
+      if (!namedStructs.has(fullName)) {
+        namedStructs.set(fullName, {
+          contract,
+          name: structName,
+          fields: param.components.map(comp => ({
+            name: comp.name,
+            type: comp.type,
+            internalType: comp.internalType,
+            components: comp.components
+          }))
+        });
+      }
+    }
+  }
+
+  // Recursively check components
+  if (param.components) {
+    for (const comp of param.components) {
+      extractNamedStructFromParam(comp, contractName);
+    }
+  }
+}
+
 // ---------- Canonical type & signature helpers ----------
 
 // canonical type for one ABI param (handles tuples, arrays, nested)
@@ -72,11 +154,7 @@ function parseTupleType(components) {
   return `tuple<${ts.join(', ')}>`;
 }
 
-function cppBaseTypeFrom(param) {
-  const base = param.type.replace(/(\[[0-9]*\])*$/,'');
-  if (base === 'tuple') return parseTupleType(param.components || []);
-  return baseTypeMap[base] || 'uint_t<256>'; // conservative fallback
-}
+
 
 function wrapWithArrayDims(inner, arraySuffix) {
   // arraySuffix like "[][2][]"
@@ -98,6 +176,23 @@ function cppTypeForParam(param) {
   const arraySuffix = (param.type.match(/(\[[0-9]*\])*$/) || [''])[0];
   const baseCpp = cppBaseTypeFrom(param);
   return wrapWithArrayDims(baseCpp, arraySuffix);
+}
+
+function cppBaseTypeFrom(param) {
+  const base = param.type.replace(/(\[[0-9]*\])*$/,'');
+  if (base === 'tuple') {
+    // Check if this is a named struct
+    if (param.internalType) {
+      const match = param.internalType.match(/struct\s+([^.]+)\.(.+)/);
+      if (match) {
+        const [, contract, structName] = match;
+        // Use a simplified name for the struct
+        return `${contract}_${structName}`;
+      }
+    }
+    return parseTupleType(param.components || []);
+  }
+  return baseTypeMap[base] || 'uint_t<256>'; // conservative fallback
 }
 
 // ---------- Function type generation ----------
@@ -143,56 +238,181 @@ function toCamelCase(str) {
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
+function generateNamedSchemas() {
+  let output = '';
+
+  for (const [fullName, structInfo] of namedStructs) {
+    const structName = `${structInfo.contract}_${structInfo.name}`;
+    const schemaTypes = structInfo.fields.map(field => cppTypeForParam(field));
+    const schemaTuple = `abi::tuple<${schemaTypes.join(', ')}>`;
+
+    output += `// ---------- Named schema for ${fullName} ----------\n`;
+    output += `struct ${structName} {\n`;
+
+    // Value type fields
+    for (const field of structInfo.fields) {
+      const fieldType = cppTypeForParam(field);
+      const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
+      output += `  typename value_of<${fieldType}>::type ${fieldName};\n`;
+    }
+
+    // Underlying ABI schema
+    output += `\n  // Underlying ABI schema\n`;
+    output += `  using schema = ${schemaTuple};\n`;
+
+    // to_tuple conversion
+    output += `\n  // Conversion to underlying tuple\n`;
+    output += `  static typename value_of<schema>::type to_tuple(const ${structName}& s) {\n`;
+    output += `    return {\n`;
+    for (const field of structInfo.fields) {
+      const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
+      output += `      s.${fieldName},\n`;
+    }
+    output += `    };\n`;
+    output += `  }\n`;
+
+    // from_tuple conversion
+    output += `\n  // Conversion from underlying tuple\n`;
+    output += `  static ${structName} from_tuple(const typename value_of<schema>::type& t) {\n`;
+    output += `    ${structName} s{};\n`;
+    structInfo.fields.forEach((field, index) => {
+      const fieldName = toCamelCase(field.name || `f${index}`);
+      output += `    s.${fieldName} = std::get<${index}>(t);\n`;
+    });
+    output += `    return s;\n`;
+    output += `  }\n`;
+
+    output += `};\n\n`;
+  }
+
+  return output;
+}
+
+function generateTraitsSpecializations() {
+  let traits = '';
+
+  // Generate value_of specializations first
+  traits += `// value_of specializations for named structs\n`;
+  for (const [fullName, structInfo] of namedStructs) {
+    const structName = `protocols::${structInfo.contract}_${structInfo.name}`;
+    traits += `template<> struct value_of<${structName}> { using type = ${structName}; };\n`;
+  }
+  traits += `\n`;
+
+  // Generate traits specializations that delegate to underlying tuple schema
+  traits += `// traits specializations that delegate to underlying tuple schema\n`;
+  for (const [fullName, structInfo] of namedStructs) {
+    const structName = `protocols::${structInfo.contract}_${structInfo.name}`;
+
+    traits += `template<> struct traits<${structName}> {\n`;
+    traits += `  using S = typename ${structName}::schema;\n`;
+    traits += `  static constexpr bool is_dynamic  = traits<S>::is_dynamic;\n`;
+    traits += `  static constexpr size_t head_words= traits<S>::head_words;\n\n`;
+
+    traits += `  static size_t tail_size(const ${structName}& v) {\n`;
+    traits += `    return traits<S>::tail_size( ${structName}::to_tuple(v) );\n`;
+    traits += `  }\n\n`;
+
+    traits += `  static void encode_head(uint8_t* out32, size_t hi, const ${structName}& v, size_t base) {\n`;
+    traits += `    traits<S>::encode_head(out32, hi, ${structName}::to_tuple(v), base);\n`;
+    traits += `  }\n\n`;
+
+    traits += `  static void encode_tail(uint8_t* out, size_t base, const ${structName}& v) {\n`;
+    traits += `    traits<S>::encode_tail(out, base, ${structName}::to_tuple(v));\n`;
+    traits += `  }\n\n`;
+
+    traits += `  static bool decode(BytesSpan in, ${structName}& out, Error* e=nullptr) {\n`;
+    traits += `    typename value_of<S>::type tmp;\n`;
+    traits += `    if (!traits<S>::decode(in, tmp, e)) return false;\n`;
+    traits += `    out = ${structName}::from_tuple(tmp);\n`;
+    traits += `    return true;\n`;
+    traits += `  }\n`;
+
+    traits += `};\n\n`;
+  }
+
+  return traits;
+}
+
 async function generateProtocolsHeader() {
-  let header = `#pragma once
-
-#include "abi.h"
-
-namespace abi {
-namespace protocols {
-
-// Auto-generated from ABI JSON files on ${new Date().toISOString()}
-// Run: node scripts/generate_from_abi_json.mjs
-
-`;
-
-  // Process each ABI file
+  // First pass: extract named structs from all ABI files
   for (const [contractName, abiPath] of Object.entries(abiFiles)) {
     try {
       const abiContent = fs.readFileSync(abiPath, 'utf8');
       const abi = JSON.parse(abiContent);
-      
+      extractNamedStructs(abi, contractName);
+    } catch (error) {
+      console.error(`Error processing ${abiPath}:`, error.message);
+    }
+  }
+
+  let header = `#pragma once
+
+#include "abi.h"
+
+// Auto-generated from ABI JSON files on ${new Date().toISOString()}
+// Run: node scripts/generate_from_abi_json.mjs
+
+// ==============================
+// Named Structs (in abi::protocols namespace)
+// ==============================
+
+namespace abi {
+namespace protocols {
+
+${generateNamedSchemas()}
+
+} // namespace protocols
+
+// ==============================
+// Traits specializations for named structs (in abi namespace)
+// ==============================
+
+${generateTraitsSpecializations()}
+
+} // namespace abi
+
+namespace abi {
+namespace protocols {
+`;
+
+  // Second pass: process each ABI file for function generation
+  for (const [contractName, abiPath] of Object.entries(abiFiles)) {
+    try {
+      const abiContent = fs.readFileSync(abiPath, 'utf8');
+      const abi = JSON.parse(abiContent);
+
       header += `// ==============================\n`;
       header += `// ${contractName}\n`;
       header += `// ==============================\n\n`;
-      
+
       for (const item of abi) {
         if (item.type === 'function') {
           const selectorName = `Sel_${toCamelCase(item.name)}`;
-          
+
           // Calculate selector using the canonical signature
           const selector = calculateSelector(item);
-          
+
           // Build the function signature for the comment
           const signature = buildFunctionSignature(item.name, item.inputs);
-          
+
           const hexBytes = selectorToHex(selector);
           header += `struct ${selectorName} { static constexpr std::array<uint8_t,4> value{{${hexBytes}}}; }; // "${signature}"\n`;
-          
+
           // Generate function typedef
           const cppType = generateCppType(item);
           if (cppType) {
             const functionName = toPascalCase(item.name);
-            
+
             // Store function info - return type first, then arguments
             const args = [cppType.returnType, ...cppType.inputTypes].join(', ');
             header += `using ${functionName} = Fn<${selectorName}, ${args}>;\n`;
           }
-          
+
           header += '\n';
         }
       }
-      
+
     } catch (error) {
       console.error(`Error processing ${abiPath}:`, error.message);
     }

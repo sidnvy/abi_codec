@@ -590,6 +590,25 @@ private:
 };
 
 // ----------------- arg planner & encoder -----------------
+
+// Generic data size calculation (without selector) - for return values and data encoding
+template<class Schema, class V>
+inline size_t encoded_size_data(const V& value) {
+  return 32 * traits<Schema>::head_words + traits<Schema>::tail_size(value);
+}
+
+// Generic data encoder (without selector) - for return values and data encoding
+template<class Schema, class V>
+inline bool encode_data_into(uint8_t* out, size_t out_cap, const V& value, Error* e=nullptr) {
+  const size_t need = encoded_size_data<Schema>(value);
+  if(out_cap < need){ if(e) e->message="encode_data: buffer too small"; return false; }
+
+  const size_t base = 32 * traits<Schema>::head_words;
+  traits<Schema>::encode_head(out, 0, value, base);
+  traits<Schema>::encode_tail(out, base, value);
+  return true;
+}
+
 template<class... Schemas, class... Vs>
 inline size_t encoded_size_args(const std::tuple<Vs...>& args){
   static_assert(sizeof...(Schemas)==sizeof...(Vs), "arity mismatch");
