@@ -13,6 +13,9 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 
+// Include utilities
+#include "utils.h"
+
 namespace abi {
 
 // ----------------- minimal Span<T> for C++17 -----------------
@@ -61,6 +64,9 @@ template<> struct value_of<string_t>  { using type = std::string; };
 template<class T, size_t N> struct value_of<static_array<T,N>> { using type = std::array<typename value_of<T>::type, N>; };
 template<class T>           struct value_of<dyn_array<T>>      { using type = std::vector<typename value_of<T>::type>; };
 template<class... Ts>       struct value_of<tuple<Ts...>>      { using type = std::tuple<typename value_of<Ts>::type...>; };
+
+// Convenience alias for cleaner field type declarations
+template<class S> using cpp_t = typename value_of<S>::type;
 
 // ----------------- helpers -----------------
 inline constexpr size_t pad32(size_t n){ return (n + 31) & ~size_t(31); }
@@ -591,17 +597,17 @@ private:
 
 // ----------------- arg planner & encoder -----------------
 
-// Generic data size calculation (without selector) - for return values and data encoding
+// Generic size calculation - for any data encoding (no selector)
 template<class Schema, class V>
-inline size_t encoded_size_data(const V& value) {
+inline size_t encoded_size(const V& value) {
   return 32 * traits<Schema>::head_words + traits<Schema>::tail_size(value);
 }
 
-// Generic data encoder (without selector) - for return values and data encoding
+// Generic encoder - for any data encoding (no selector)
 template<class Schema, class V>
-inline bool encode_data_into(uint8_t* out, size_t out_cap, const V& value, Error* e=nullptr) {
-  const size_t need = encoded_size_data<Schema>(value);
-  if(out_cap < need){ if(e) e->message="encode_data: buffer too small"; return false; }
+inline bool encode_into(uint8_t* out, size_t out_cap, const V& value, Error* e=nullptr) {
+  const size_t need = encoded_size<Schema>(value);
+  if(out_cap < need){ if(e) e->message="encode: buffer too small"; return false; }
 
   const size_t base = 32 * traits<Schema>::head_words;
   traits<Schema>::encode_head(out, 0, value, base);
@@ -609,8 +615,9 @@ inline bool encode_data_into(uint8_t* out, size_t out_cap, const V& value, Error
   return true;
 }
 
+
 template<class... Schemas, class... Vs>
-inline size_t encoded_size_args(const std::tuple<Vs...>& args){
+inline size_t encoded_size_call(const std::tuple<Vs...>& args){
   static_assert(sizeof...(Schemas)==sizeof...(Vs), "arity mismatch");
   constexpr size_t head_words_total =
       ((traits<Schemas>::is_dynamic ? 1 : traits<Schemas>::head_words) + ... + 0);
@@ -623,13 +630,13 @@ inline size_t encoded_size_args(const std::tuple<Vs...>& args){
 }
 
 template<class... Schemas, class... Vs>
-inline bool encode_args_into(uint8_t* out, size_t out_cap,
+inline bool encode_call_into(uint8_t* out, size_t out_cap,
                              const std::array<uint8_t,4>& selector,
                              const std::tuple<Vs...>& args,
                              Error* e=nullptr){
   static_assert(sizeof...(Schemas)==sizeof...(Vs), "arity mismatch");
-  const size_t need = encoded_size_args<Schemas...>(args);
-  if(out_cap < need){ if(e) e->message="encode: buffer too small"; return false; }
+  const size_t need = encoded_size_call<Schemas...>(args);
+  if(out_cap < need){ if(e) e->message="encode_call: buffer too small"; return false; }
 
   // selector
   std::memcpy(out, selector.data(), 4);
@@ -684,17 +691,20 @@ template<class Selector, class RetSchema, class... ArgSchemas>
 struct Fn {
   using return_t = typename value_of<RetSchema>::type;
 
+  // Function call encoding (input: arguments, output: encoded call data)
   template<class... Vs>
   static size_t encoded_size(const Vs&... vs){
     auto tup = std::forward_as_tuple(vs...);
-    return encoded_size_args<ArgSchemas...>(tup);
+    return encoded_size_call<ArgSchemas...>(tup);
   }
   template<class... Vs>
-  static bool encode_into(uint8_t* out, size_t cap, const Vs&... vs, Error* e=nullptr){
+  static bool encode_call(uint8_t* out, size_t cap, const Vs&... vs, Error* e=nullptr){
     auto tup = std::forward_as_tuple(vs...);
-    return encode_args_into<ArgSchemas...>(out, cap, Selector::value, tup, e);
+    return encode_call_into<ArgSchemas...>(out, cap, Selector::value, tup, e);
   }
-  static bool decode(BytesSpan in, return_t& out, Error* e=nullptr){
+
+  // Return value decoding (input: response data, output: decoded result)
+  static bool decode_result(BytesSpan in, return_t& out, Error* e=nullptr){
     return decode_from<RetSchema>(in, out, e);
   }
 };

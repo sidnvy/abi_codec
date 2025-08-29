@@ -54,9 +54,22 @@ std::cout << "Tick: " << slot0_result.tick << "\n";
 std::cout << "Unlocked: " << slot0_result.unlocked << "\n";
 
 // Encode back to bytes
-const size_t size = abi::encoded_size_data<IUniswapV3Pool_Slot0>(slot0_result);
+const size_t size = abi::encoded_size<IUniswapV3Pool_Slot0>(slot0_result);
 std::vector<uint8_t> buffer(size);
-abi::encode_data_into<IUniswapV3Pool_Slot0>(buffer.data(), buffer.size(), slot0_result);
+abi::encode_into<IUniswapV3Pool_Slot0>(buffer.data(), buffer.size(), slot0_result);
+```
+
+### Utility Functions (For Ethereum data)
+
+```cpp
+#include "abi/abi.h"
+
+// Parse hex strings to bytes/addresses
+std::vector<uint8_t> bytes = abi::parse_hex("0x1234567890abcdef");
+std::array<uint8_t, 20> address = abi::addr_from_hex("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+
+// Convert address back to hex
+std::string hex_addr = abi::addr_to_hex_string(address); // "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 ```
 
 ### Generic Functions (For custom data)
@@ -66,12 +79,12 @@ abi::encode_data_into<IUniswapV3Pool_Slot0>(buffer.data(), buffer.size(), slot0_
 
 // Calculate encoded size
 boost::multiprecision::cpp_int value = boost::multiprecision::cpp_int("123456789");
-const size_t size = abi::encoded_size_data<abi::uint_t<256>>(value);
+const size_t size = abi::encoded_size<abi::uint_t<256>>(value);
 
 // Encode to buffer
 std::vector<uint8_t> buffer(size);
 abi::Error err;
-abi::encode_data_into<abi::uint_t<256>>(buffer.data(), buffer.size(), value, &err);
+abi::encode_into<abi::uint_t<256>>(buffer.data(), buffer.size(), value, &err);
 
 // Decode from buffer
 boost::multiprecision::cpp_int decoded;
@@ -92,12 +105,12 @@ std::vector<uint8_t> call_data;
 size_t call_size = Transfer::encoded_size(recipient, amount);
 call_data.resize(call_size);
 abi::Error err;
-Transfer::encode_into(call_data.data(), call_data.size(), recipient, amount, &err);
+Transfer::encode_call(call_data.data(), call_data.size(), recipient, amount, &err);
 
 // Decode return value
 bool transfer_success;
 abi::BytesSpan return_data(/* RPC response */, /* size */);
-Transfer::decode(return_data, transfer_success, &err);
+Transfer::decode_result(return_data, transfer_success, &err);
 ```
 
 ## API Reference
@@ -116,6 +129,11 @@ namespace abi {
     // Composite types
     template<class T> struct dyn_array;  // Dynamic array: T[]
     template<class... Ts> struct tuple;  // Tuple: (T1, T2, ...)
+
+    // Utility functions
+    std::vector<uint8_t> parse_hex(const std::string& hex);           // Parse hex to bytes
+    std::array<uint8_t, 20> addr_from_hex(const std::string& addr);   // Parse hex to address
+    std::string addr_to_hex_string(const std::array<uint8_t, 20>& addr); // Address to hex
 }
 ```
 
@@ -124,11 +142,11 @@ namespace abi {
 namespace abi {
     // Size calculation (no selector, for return data)
     template<class Schema, class V>
-    size_t encoded_size_data(const V& value);
+    size_t encoded_size(const V& value);
 
     // Data encoding (no selector, for return data)
     template<class Schema, class V>
-    bool encode_data_into(uint8_t* out, size_t cap, const V& value, Error* e=nullptr);
+    bool encode_into(uint8_t* out, size_t cap, const V& value, Error* e=nullptr);
 
     // Data decoding
     template<class Schema, class V>
@@ -146,10 +164,41 @@ namespace abi::protocols {
 
     // Function call encoding (includes 4-byte selector)
     template<class... Args>
-    bool encode_into(uint8_t* out, size_t cap, const Args&... args, Error* e=nullptr);
+    bool encode_call(uint8_t* out, size_t cap, const Args&... args, Error* e=nullptr);
 
     // Return value decoding
+    bool decode_result(BytesSpan in, ReturnType& out, Error* e=nullptr);
+
+    // Legacy aliases for backward compatibility
+    template<class... Args>
+    [[deprecated("Use encode_call instead")]]
+    bool encode_into(uint8_t* out, size_t cap, const Args&... args, Error* e=nullptr);
+
+    [[deprecated("Use decode_result instead")]]
     bool decode(BytesSpan in, ReturnType& out, Error* e=nullptr);
+}
+```
+
+### Legacy API (Deprecated)
+```cpp
+// For backward compatibility - these will show deprecation warnings
+namespace abi {
+    template<class Schema, class V>
+    [[deprecated("Use encoded_size instead")]]
+    size_t encoded_size_data(const V& value);
+
+    template<class Schema, class V>
+    [[deprecated("Use encode_into instead")]]
+    bool encode_data_into(uint8_t* out, size_t cap, const V& value, Error* e=nullptr);
+
+    template<class... Schemas, class... Vs>
+    [[deprecated("Use encoded_size_call instead")]]
+    size_t encoded_size_args(const std::tuple<Vs...>& args);
+
+    template<class... Schemas, class... Vs>
+    [[deprecated("Use encode_call_into instead")]]
+    bool encode_args_into(uint8_t* out, size_t out_cap, const std::array<uint8_t,4>& selector,
+                          const std::tuple<Vs...>& args, Error* e=nullptr);
 }
 ```
 
@@ -220,7 +269,7 @@ npm run test # Alternative test command
 ```
 
 **Test Coverage (69 tests):**
-- **Generic functions** - `encoded_size_data`, `encode_data_into` validation
+- **Generic functions** - `encoded_size`, `encode_into` validation
 - **Named structs** - ABI-generated types round-trip testing
 - **Function calls** - Protocol-specific encoding/decoding
 - **Edge cases** - Boundary conditions, error handling
@@ -241,7 +290,7 @@ using Approve = abi::protocols::Approve;
 // Clean function calls
 std::array<uint8_t, 20> addr = /* address */;
 boost::multiprecision::cpp_int amount = /* amount */;
-bool success = Transfer::encode_into(buffer, size, addr, amount, &err);
+bool success = Transfer::encode_call(buffer, size, addr, amount, &err);
 ```
 
 ### Multicall3 Protocol
@@ -251,7 +300,7 @@ using TryAggregate = abi::protocols::TryAggregate;
 
 // Handle complex multicall returns
 std::vector<Multicall3_Result> results;
-Aggregate3::decode(response_data, results, &err);
+Aggregate3::decode_result(response_data, results, &err);
 ```
 
 ### UniswapV3 Protocol
@@ -319,8 +368,8 @@ abi_codec/
 #include "abi/protocols.h"     // Named structs (optional)
 
 // Use generic functions
-const size_t size = abi::encoded_size_data<abi::uint_t<256>>(value);
-abi::encode_data_into<abi::uint_t<256>>(buffer, size, value);
+const size_t size = abi::encoded_size<abi::uint_t<256>>(value);
+abi::encode_into<abi::uint_t<256>>(buffer, size, value);
 
 // Or use named structs
 IUniswapV3Pool_Slot0 slot0;

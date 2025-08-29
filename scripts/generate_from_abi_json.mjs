@@ -7,9 +7,10 @@ import path from 'path';
 // ABI JSON file paths
 const abiFiles = {
   "ERC20": "abis/erc20.json",
-  "UniswapV3Pool": "abis/uniswap_v3_pool.json", 
+  "UniswapV3Pool": "abis/uniswap_v3_pool.json",
   "UniswapV3TickLens": "abis/uniswap_v3_tick_lens.json",
-  "Multicall": "abis/multicall.json"
+  "Multicall": "abis/multicall.json",
+  "UniswapV2Router": "abis/uniswap_v2_router.json"
 };
 
 // ---------- Named struct extraction and management ----------
@@ -183,7 +184,9 @@ function cppBaseTypeFrom(param) {
   if (base === 'tuple') {
     // Check if this is a named struct
     if (param.internalType) {
-      const match = param.internalType.match(/struct\s+([^.]+)\.(.+)/);
+      // Strip array notation from internalType before extracting struct name
+      const cleanInternalType = param.internalType.replace(/(\[[0-9]*\])*$/, '');
+      const match = cleanInternalType.match(/struct\s+([^.]+)\.(.+)/);
       if (match) {
         const [, contract, structName] = match;
         // Use a simplified name for the struct
@@ -253,7 +256,7 @@ function generateNamedSchemas() {
     for (const field of structInfo.fields) {
       const fieldType = cppTypeForParam(field);
       const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
-      output += `  typename value_of<${fieldType}>::type ${fieldName};\n`;
+      output += `  abi::cpp_t<${fieldType}> ${fieldName};\n`;
     }
 
     // Underlying ABI schema
@@ -262,18 +265,19 @@ function generateNamedSchemas() {
 
     // to_tuple conversion
     output += `\n  // Conversion to underlying tuple\n`;
-    output += `  static typename value_of<schema>::type to_tuple(const ${structName}& s) {\n`;
-    output += `    return {\n`;
-    for (const field of structInfo.fields) {
-      const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
-      output += `      s.${fieldName},\n`;
-    }
-    output += `    };\n`;
+    output += `  static abi::value_of<schema>::type to_tuple(const ${structName}& s) {\n`;
+    output += `    return std::make_tuple(\n`;
+    structInfo.fields.forEach((field, index) => {
+      const fieldName = toCamelCase(field.name || `f${index}`);
+      const isLast = index === structInfo.fields.length - 1;
+      output += `      s.${fieldName}${isLast ? '' : ','}\n`;
+    });
+    output += `    );\n`;
     output += `  }\n`;
 
     // from_tuple conversion
     output += `\n  // Conversion from underlying tuple\n`;
-    output += `  static ${structName} from_tuple(const typename value_of<schema>::type& t) {\n`;
+    output += `  static ${structName} from_tuple(const abi::value_of<schema>::type& t) {\n`;
     output += `    ${structName} s{};\n`;
     structInfo.fields.forEach((field, index) => {
       const fieldName = toCamelCase(field.name || `f${index}`);
@@ -322,7 +326,7 @@ function generateTraitsSpecializations() {
     traits += `  }\n\n`;
 
     traits += `  static bool decode(BytesSpan in, ${structName}& out, Error* e=nullptr) {\n`;
-    traits += `    typename value_of<S>::type tmp;\n`;
+    traits += `    abi::value_of<S>::type tmp;\n`;
     traits += `    if (!traits<S>::decode(in, tmp, e)) return false;\n`;
     traits += `    out = ${structName}::from_tuple(tmp);\n`;
     traits += `    return true;\n`;
@@ -388,7 +392,7 @@ namespace protocols {
 
       for (const item of abi) {
         if (item.type === 'function') {
-          const selectorName = `Sel_${toCamelCase(item.name)}`;
+          const selectorName = `Sel_${contractName}_${toCamelCase(item.name)}`;
 
           // Calculate selector using the canonical signature
           const selector = calculateSelector(item);
@@ -402,7 +406,7 @@ namespace protocols {
           // Generate function typedef
           const cppType = generateCppType(item);
           if (cppType) {
-            const functionName = toPascalCase(item.name);
+            const functionName = `${contractName}_${toPascalCase(item.name)}`;
 
             // Store function info - return type first, then arguments
             const args = [cppType.returnType, ...cppType.inputTypes].join(', ');

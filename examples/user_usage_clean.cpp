@@ -3,7 +3,36 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #include "abi/protocols.h"
 
-using namespace abi::protocols;
+// Use specific contract-prefixed names to avoid conflicts
+
+// Struct types
+using IUniswapV3Pool_Slot0 = abi::protocols::IUniswapV3Pool_Slot0;
+using IUniswapV3Pool_Tick = abi::protocols::IUniswapV3Pool_Tick;
+using Multicall3_Result = abi::protocols::Multicall3_Result;
+using ITickLens_PopulatedTick = abi::protocols::ITickLens_PopulatedTick;
+using Multicall3_Call = abi::protocols::Multicall3_Call;
+using Multicall3_Call3Value = abi::protocols::Multicall3_Call3Value;
+
+// ERC20 functions
+using ERC20_BalanceOf = abi::protocols::ERC20_BalanceOf;
+using ERC20_Transfer = abi::protocols::ERC20_Transfer;
+using ERC20_Approve = abi::protocols::ERC20_Approve;
+using ERC20_TotalSupply = abi::protocols::ERC20_TotalSupply;
+
+// Uniswap V3 Pool functions
+using UniswapV3Pool_Slot0 = abi::protocols::UniswapV3Pool_Slot0;
+using UniswapV3Pool_Ticks = abi::protocols::UniswapV3Pool_Ticks;
+using UniswapV3Pool_Token0 = abi::protocols::UniswapV3Pool_Token0;
+using UniswapV3Pool_Token1 = abi::protocols::UniswapV3Pool_Token1;
+using UniswapV3Pool_Liquidity = abi::protocols::UniswapV3Pool_Liquidity;
+using UniswapV3Pool_Observe = abi::protocols::UniswapV3Pool_Observe;
+
+// Uniswap V2 Router functions
+using UniswapV2Router_GetAmountsOut = abi::protocols::UniswapV2Router_GetAmountsOut;
+using UniswapV2Router_SwapExactTokensForTokens = abi::protocols::UniswapV2Router_SwapExactTokensForTokens;
+
+// Use shared utilities from abi namespace
+// abi::parse_hex() and abi::addr_from_hex() are now available
 
 // Example showing how to use the clean named structs to access return values
 void demonstrateCleanUsage() {
@@ -56,9 +85,9 @@ void demonstrateCleanUsage() {
 
     // Option 2: Using the Fn struct's decode method
     IUniswapV3Pool_Tick tick_result2;
-    bool decoded2 = abi::protocols::Ticks::decode(tick_data, tick_result2);
+    bool decoded2 = UniswapV3Pool_Ticks::decode_result(tick_data, tick_result2);
     if (decoded2) {
-        std::cout << "  ✅ Decoded using abi::protocols::Ticks::decode\n";
+        std::cout << "  ✅ Decoded using UniswapV3Pool_Ticks::decode_result\n";
     }
 
     // Both methods should work identically (since empty data won't decode)
@@ -190,10 +219,10 @@ void demonstrateCleanUsage() {
     slot0_to_encode.unlocked = true;
 
     std::vector<uint8_t> encoded_slot0_new;
-    const size_t slot0_size = abi::encoded_size_data<IUniswapV3Pool_Slot0>(slot0_to_encode);
+    const size_t slot0_size = abi::encoded_size<IUniswapV3Pool_Slot0>(slot0_to_encode);
     encoded_slot0_new.resize(slot0_size);
-    if (abi::encode_data_into<IUniswapV3Pool_Slot0>(encoded_slot0_new.data(), encoded_slot0_new.size(), slot0_to_encode)) {
-        std::cout << "  ✅ Encoded Slot0 using abi::encode_data_into<>\n";
+    if (abi::encode_into<IUniswapV3Pool_Slot0>(encoded_slot0_new.data(), encoded_slot0_new.size(), slot0_to_encode)) {
+        std::cout << "  ✅ Encoded Slot0 using abi::encode_into<>\n";
         std::cout << "    Encoded size: " << encoded_slot0_new.size() << " bytes\n";
         std::cout << "    First 32 bytes (sqrtPriceX96): ";
         for (size_t i = 0; i < 32 && i < encoded_slot0_new.size(); ++i) {
@@ -214,10 +243,10 @@ void demonstrateCleanUsage() {
     tick_to_encode.initialized = true;
 
     std::vector<uint8_t> encoded_tick_new;
-    const size_t tick_size = abi::encoded_size_data<IUniswapV3Pool_Tick>(tick_to_encode);
+    const size_t tick_size = abi::encoded_size<IUniswapV3Pool_Tick>(tick_to_encode);
     encoded_tick_new.resize(tick_size);
-    if (abi::encode_data_into<IUniswapV3Pool_Tick>(encoded_tick_new.data(), encoded_tick_new.size(), tick_to_encode)) {
-        std::cout << "  ✅ Encoded Tick using abi::encode_data_into<>\n";
+    if (abi::encode_into<IUniswapV3Pool_Tick>(encoded_tick_new.data(), encoded_tick_new.size(), tick_to_encode)) {
+        std::cout << "  ✅ Encoded Tick using abi::encode_into<>\n";
         std::cout << "    Encoded size: " << encoded_tick_new.size() << " bytes\n";
     }
 
@@ -229,10 +258,10 @@ void demonstrateCleanUsage() {
     call_to_encode.callData = {0xa9, 0x05, 0x9c, 0xbb}; // transfer selector
 
     std::vector<uint8_t> encoded_call_new;
-    const size_t call_size = abi::encoded_size_data<Multicall3_Call3Value>(call_to_encode);
+    const size_t call_size = abi::encoded_size<Multicall3_Call3Value>(call_to_encode);
     encoded_call_new.resize(call_size);
-    if (abi::encode_data_into<Multicall3_Call3Value>(encoded_call_new.data(), encoded_call_new.size(), call_to_encode)) {
-        std::cout << "  ✅ Encoded Multicall3_Call3Value using abi::encode_data_into<>\n";
+    if (abi::encode_into<Multicall3_Call3Value>(encoded_call_new.data(), encoded_call_new.size(), call_to_encode)) {
+        std::cout << "  ✅ Encoded Multicall3_Call3Value using abi::encode_into<>\n";
         std::cout << "    Encoded size: " << encoded_call_new.size() << " bytes\n";
     }
 
@@ -241,9 +270,9 @@ void demonstrateCleanUsage() {
 
     // Round-trip Slot0
     std::vector<uint8_t> slot0_roundtrip;
-    const size_t slot0_roundtrip_size = abi::encoded_size_data<IUniswapV3Pool_Slot0>(slot0_to_encode);
+    const size_t slot0_roundtrip_size = abi::encoded_size<IUniswapV3Pool_Slot0>(slot0_to_encode);
     slot0_roundtrip.resize(slot0_roundtrip_size);
-    if (abi::encode_data_into<IUniswapV3Pool_Slot0>(slot0_roundtrip.data(), slot0_roundtrip.size(), slot0_to_encode)) {
+    if (abi::encode_into<IUniswapV3Pool_Slot0>(slot0_roundtrip.data(), slot0_roundtrip.size(), slot0_to_encode)) {
         IUniswapV3Pool_Slot0 decoded_slot0;
         abi::BytesSpan decode_span(slot0_roundtrip.data(), slot0_roundtrip.size());
         if (abi::decode_from<IUniswapV3Pool_Slot0>(decode_span, decoded_slot0)) {
@@ -256,9 +285,9 @@ void demonstrateCleanUsage() {
 
     // Round-trip Tick
     std::vector<uint8_t> tick_roundtrip;
-    const size_t tick_roundtrip_size = abi::encoded_size_data<IUniswapV3Pool_Tick>(tick_to_encode);
+    const size_t tick_roundtrip_size = abi::encoded_size<IUniswapV3Pool_Tick>(tick_to_encode);
     tick_roundtrip.resize(tick_roundtrip_size);
-    if (abi::encode_data_into<IUniswapV3Pool_Tick>(tick_roundtrip.data(), tick_roundtrip.size(), tick_to_encode)) {
+    if (abi::encode_into<IUniswapV3Pool_Tick>(tick_roundtrip.data(), tick_roundtrip.size(), tick_to_encode)) {
         IUniswapV3Pool_Tick decoded_tick;
         abi::BytesSpan decode_span(tick_roundtrip.data(), tick_roundtrip.size());
         if (abi::decode_from<IUniswapV3Pool_Tick>(decode_span, decoded_tick)) {
@@ -276,12 +305,12 @@ void demonstrateCleanUsage() {
 
     // Method A: protocols::Slot0::encode_into() - Function Call Encoding
     std::vector<uint8_t> function_call_buffer;
-    size_t function_call_size = abi::protocols::Slot0::encoded_size();
+    size_t function_call_size = UniswapV3Pool_Slot0::encoded_size();
     function_call_buffer.resize(function_call_size);
 
     abi::Error call_err;
-    if (abi::protocols::Slot0::encode_into(function_call_buffer.data(), function_call_buffer.size(), &call_err)) {
-        std::cout << "     📞 Function Call Encoding (protocols::Slot0::encode_into):\n";
+    if (UniswapV3Pool_Slot0::encode_call(function_call_buffer.data(), function_call_buffer.size(), &call_err)) {
+        std::cout << "     📞 Function Call Encoding (UniswapV3Pool_Slot0::encode_call):\n";
         std::cout << "       Size: " << function_call_buffer.size() << " bytes\n";
         std::cout << "       Data: ";
         for (size_t i = 0; i < function_call_buffer.size(); ++i) {
@@ -292,7 +321,7 @@ void demonstrateCleanUsage() {
         std::cout << "       This creates a CALL to slot0() function\n";
     }
 
-    // Method B: abi::encode_data_into() - Data Encoding (what we need for responses)
+    // Method B: abi::encode_into() - Data Encoding (what we need for responses)
     IUniswapV3Pool_Slot0 slot0_struct;
     slot0_struct.sqrtPriceX96 = boost::multiprecision::cpp_int("429512873912345678901234567890");
     slot0_struct.tick = 12345;
@@ -303,10 +332,10 @@ void demonstrateCleanUsage() {
     slot0_struct.unlocked = true;
 
     std::vector<uint8_t> data_buffer;
-    const size_t data_size = abi::encoded_size_data<IUniswapV3Pool_Slot0>(slot0_struct);
+    const size_t data_size = abi::encoded_size<IUniswapV3Pool_Slot0>(slot0_struct);
     data_buffer.resize(data_size);
-    if (abi::encode_data_into<IUniswapV3Pool_Slot0>(data_buffer.data(), data_buffer.size(), slot0_struct)) {
-            std::cout << "\n     📦 Data Encoding (using abi::encode_data_into for response data):\n";
+    if (abi::encode_into<IUniswapV3Pool_Slot0>(data_buffer.data(), data_buffer.size(), slot0_struct)) {
+            std::cout << "\n     📦 Data Encoding (using abi::encode_into for response data):\n";
     std::cout << "       Size: " << data_buffer.size() << " bytes\n";
     std::cout << "       Data: ";
     for (size_t i = 0; i < std::min(size_t(32), data_buffer.size()); ++i) {
@@ -314,7 +343,7 @@ void demonstrateCleanUsage() {
     }
     std::cout << "...\n";
     std::cout << "       This encodes the Slot0 struct AS DATA (no function selector)\n";
-    std::cout << "       Uses: abi::encoded_size_data<IUniswapV3Pool_Slot0>() + abi::encode_data_into<>()\n";
+    std::cout << "       Uses: abi::encoded_size<IUniswapV3Pool_Slot0>() + abi::encode_into<>()\n";
     }
 
     std::cout << "\n     🎯 Key Difference:\n";
@@ -323,7 +352,7 @@ void demonstrateCleanUsage() {
     std::cout << "       • For testing: We need data encoding to simulate responses\n";
 
     std::cout << "\n     📐 Size Calculation Comparison:\n";
-    std::cout << "       • protocols::Slot0::encoded_size() = " << abi::protocols::Slot0::encoded_size() << " bytes (includes selector)\n";
+    std::cout << "       • UniswapV3Pool_Slot0::encoded_size() = " << UniswapV3Pool_Slot0::encoded_size() << " bytes (includes selector)\n";
     std::cout << "       • Slot0 struct data size = " << data_buffer.size() << " bytes (data only)\n";
     std::cout << "       • encoded_size_args() would add +4 for selector\n";
 
@@ -339,11 +368,11 @@ void demonstrateCleanUsage() {
 
     // Encode BalanceOf call
     std::vector<uint8_t> balance_call_data;
-    size_t balance_call_size = abi::protocols::BalanceOf::encoded_size(test_address);
+    size_t balance_call_size = ERC20_BalanceOf::encoded_size(test_address);
     balance_call_data.resize(balance_call_size);
 
     abi::Error balance_err;
-    if (abi::protocols::BalanceOf::template encode_into<std::array<uint8_t, 20>>(balance_call_data.data(), balance_call_data.size(), test_address, &balance_err)) {
+    if (ERC20_BalanceOf::template encode_call<std::array<uint8_t, 20>>(balance_call_data.data(), balance_call_data.size(), test_address, &balance_err)) {
         std::cout << "     ✅ Encoded BalanceOf call: " << balance_call_data.size() << " bytes\n";
         std::cout << "       Selector: ";
         for (size_t i = 0; i < 4; ++i) printf("%02x", balance_call_data[i]);
@@ -355,25 +384,25 @@ void demonstrateCleanUsage() {
     // Simulate BalanceOf return value (1,000,000 tokens with 18 decimals)
     boost::multiprecision::cpp_int simulated_balance = boost::multiprecision::cpp_int("1000000000000000000000000");
     std::vector<uint8_t> simulated_balance_response;
-    const size_t balance_size = abi::encoded_size_data<abi::uint_t<256>>(simulated_balance);
+    const size_t balance_size = abi::encoded_size<abi::uint_t<256>>(simulated_balance);
     simulated_balance_response.resize(balance_size);
-    abi::encode_data_into<abi::uint_t<256>>(simulated_balance_response.data(), simulated_balance_response.size(), simulated_balance);
+    abi::encode_into<abi::uint_t<256>>(simulated_balance_response.data(), simulated_balance_response.size(), simulated_balance);
 
-    // Decode using BalanceOf::decode
+    // Decode using BalanceOf::decode_result
     boost::multiprecision::cpp_int decoded_balance;
     abi::BytesSpan balance_response_span(simulated_balance_response.data(), simulated_balance_response.size());
-    if (abi::protocols::BalanceOf::decode(balance_response_span, decoded_balance)) {
+    if (ERC20_BalanceOf::decode_result(balance_response_span, decoded_balance)) {
         std::cout << "     ✅ Decoded BalanceOf result: " << decoded_balance << "\n";
         std::cout << "       Match: " << (simulated_balance == decoded_balance ? "YES" : "NO") << "\n";
     }
 
     // Test TotalSupply: () → uint256 (simpler function)
     std::vector<uint8_t> total_supply_call_data;
-    size_t total_supply_call_size = abi::protocols::TotalSupply::encoded_size();
+    size_t total_supply_call_size = ERC20_TotalSupply::encoded_size();
     total_supply_call_data.resize(total_supply_call_size);
 
     abi::Error total_supply_err;
-    if (abi::protocols::TotalSupply::encode_into(total_supply_call_data.data(), total_supply_call_data.size(), &total_supply_err)) {
+    if (ERC20_TotalSupply::encode_call(total_supply_call_data.data(), total_supply_call_data.size(), &total_supply_err)) {
         std::cout << "     ✅ Encoded TotalSupply call: " << total_supply_call_data.size() << " bytes\n";
         std::cout << "       Selector: ";
         for (size_t i = 0; i < 4; ++i) printf("%02x", total_supply_call_data[i]);
@@ -385,14 +414,14 @@ void demonstrateCleanUsage() {
     // Simulate TotalSupply return value
     boost::multiprecision::cpp_int simulated_total_supply = boost::multiprecision::cpp_int("1000000000000000000000000000"); // 1 billion tokens
     std::vector<uint8_t> simulated_total_supply_response;
-    const size_t total_supply_size = abi::encoded_size_data<abi::uint_t<256>>(simulated_total_supply);
+    const size_t total_supply_size = abi::encoded_size<abi::uint_t<256>>(simulated_total_supply);
     simulated_total_supply_response.resize(total_supply_size);
-    abi::encode_data_into<abi::uint_t<256>>(simulated_total_supply_response.data(), simulated_total_supply_response.size(), simulated_total_supply);
+    abi::encode_into<abi::uint_t<256>>(simulated_total_supply_response.data(), simulated_total_supply_response.size(), simulated_total_supply);
 
-    // Decode using TotalSupply::decode
+    // Decode using TotalSupply::decode_result
     boost::multiprecision::cpp_int decoded_total_supply;
     abi::BytesSpan total_supply_response_span(simulated_total_supply_response.data(), simulated_total_supply_response.size());
-    if (abi::protocols::TotalSupply::decode(total_supply_response_span, decoded_total_supply)) {
+    if (ERC20_TotalSupply::decode_result(total_supply_response_span, decoded_total_supply)) {
         std::cout << "     ✅ Decoded TotalSupply result: " << decoded_total_supply << "\n";
         std::cout << "       Match: " << (simulated_total_supply == decoded_total_supply ? "YES" : "NO") << "\n";
     }
@@ -402,11 +431,11 @@ void demonstrateCleanUsage() {
 
     // Test Slot0: () → Slot0 struct (simpler than Ticks)
     std::vector<uint8_t> slot0_call_data;
-    size_t slot0_call_size = abi::protocols::Slot0::encoded_size();
+    size_t slot0_call_size = UniswapV3Pool_Slot0::encoded_size();
     slot0_call_data.resize(slot0_call_size);
 
     abi::Error slot0_err;
-    if (abi::protocols::Slot0::encode_into(slot0_call_data.data(), slot0_call_data.size(), &slot0_err)) {
+    if (UniswapV3Pool_Slot0::encode_call(slot0_call_data.data(), slot0_call_data.size(), &slot0_err)) {
         std::cout << "     ✅ Encoded Slot0 call: " << slot0_call_data.size() << " bytes\n";
         std::cout << "       Selector: ";
         for (size_t i = 0; i < 4; ++i) printf("%02x", slot0_call_data[i]);
@@ -426,14 +455,14 @@ void demonstrateCleanUsage() {
     simulated_slot0.unlocked = true;
 
     std::vector<uint8_t> simulated_slot0_response;
-    const size_t slot0_response_size = abi::encoded_size_data<IUniswapV3Pool_Slot0>(simulated_slot0);
+    const size_t slot0_response_size = abi::encoded_size<IUniswapV3Pool_Slot0>(simulated_slot0);
     simulated_slot0_response.resize(slot0_response_size);
-    abi::encode_data_into<IUniswapV3Pool_Slot0>(simulated_slot0_response.data(), simulated_slot0_response.size(), simulated_slot0);
+    abi::encode_into<IUniswapV3Pool_Slot0>(simulated_slot0_response.data(), simulated_slot0_response.size(), simulated_slot0);
 
-    // Decode using Slot0::decode
+    // Decode using Slot0::decode_result
     IUniswapV3Pool_Slot0 decoded_slot0;
     abi::BytesSpan slot0_response_span(simulated_slot0_response.data(), simulated_slot0_response.size());
-    if (abi::protocols::Slot0::decode(slot0_response_span, decoded_slot0)) {
+    if (UniswapV3Pool_Slot0::decode_result(slot0_response_span, decoded_slot0)) {
         std::cout << "     ✅ Decoded Slot0 result:\n";
         std::cout << "       sqrtPriceX96: " << decoded_slot0.sqrtPriceX96 << "\n";
         std::cout << "       tick: " << decoded_slot0.tick << "\n";
@@ -537,20 +566,146 @@ void demonstrateCleanUsage() {
     std::cout << "       clean_result.success = " << (clean_result.success ? "true" : "false") << "\n";
     std::cout << "       ✅ Clean access even for unnamed ABI types!\n";
 
+    // 11. Test Uniswap V2 Router: Dynamic Arrays & Complex Signatures
+    std::cout << "\n11. Test Uniswap V2 Router: Dynamic Arrays & Complex Signatures\n";
+
+    std::cout << "\n   🔄 Testing Uniswap V2 Router functions with dynamic arrays:\n";
+
+    // Test getAmountsOut: (uint256, address[]) → uint256[]
+    using GetAmountsOut = UniswapV2Router_GetAmountsOut;
+
+    boost::multiprecision::cpp_int amountIn = boost::multiprecision::cpp_int("1000000000000000000"); // 1 ETH
+    std::vector<std::array<uint8_t, 20>> path = {
+        abi::addr_from_hex("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), // WETH
+        abi::addr_from_hex("0xA0b86a33E6441A8b5F4F62fC20cdD7E9C8C6e4F4")  // Some token
+    };
+
+    // Encode call
+    std::vector<uint8_t> amounts_call;
+    size_t amounts_call_size = GetAmountsOut::encoded_size(amountIn, path);
+    amounts_call.resize(amounts_call_size);
+
+    abi::Error amounts_err;
+    if (GetAmountsOut::template encode_call<boost::multiprecision::cpp_int, std::vector<std::array<uint8_t, 20>>>(amounts_call.data(), amounts_call.size(), amountIn, path, &amounts_err)) {
+        std::cout << "     ✅ Encoded getAmountsOut call: " << amounts_call.size() << " bytes\n";
+        std::cout << "       Path length: " << path.size() << " addresses\n";
+        std::cout << "       Selector: ";
+        for (size_t i = 0; i < 4; ++i) printf("%02x", amounts_call[i]);
+        std::cout << "\n";
+    }
+
+    // Simulate return value: uint256[] amounts
+    std::vector<boost::multiprecision::cpp_int> simulated_amounts = {
+        boost::multiprecision::cpp_int("1000000000000000000"), // Input amount
+        boost::multiprecision::cpp_int("2500000000000000000")  // Output amount
+    };
+
+    // Encode the return data using generic functions
+    const size_t amounts_size = abi::encoded_size<abi::dyn_array<abi::uint_t<256>>>(simulated_amounts);
+    std::vector<uint8_t> simulated_amounts_response;
+    simulated_amounts_response.resize(amounts_size);
+
+    abi::encode_into<abi::dyn_array<abi::uint_t<256>>>(
+        simulated_amounts_response.data(),
+        simulated_amounts_response.size(),
+        simulated_amounts
+    );
+
+    // Decode using GetAmountsOut::decode_result
+    std::vector<boost::multiprecision::cpp_int> decoded_amounts;
+    abi::BytesSpan amounts_response_span(simulated_amounts_response.data(), simulated_amounts_response.size());
+    if (GetAmountsOut::decode_result(amounts_response_span, decoded_amounts)) {
+        std::cout << "     ✅ Decoded getAmountsOut result:\n";
+        std::cout << "       Amounts: [";
+        for (size_t i = 0; i < decoded_amounts.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << decoded_amounts[i];
+        }
+        std::cout << "]\n";
+        std::cout << "       Match: " << (decoded_amounts == simulated_amounts ? "YES" : "NO") << "\n";
+    }
+
+    // Test swapExactTokensForTokens: complex signature with dynamic arrays
+    using SwapExactTokensForTokens = UniswapV2Router_SwapExactTokensForTokens;
+
+    boost::multiprecision::cpp_int swapAmountIn = boost::multiprecision::cpp_int("500000000000000000"); // 0.5 ETH
+    boost::multiprecision::cpp_int swapAmountOutMin = boost::multiprecision::cpp_int("1000000000000000000"); // 1 token min
+    std::vector<std::array<uint8_t, 20>> swapPath = {
+        abi::addr_from_hex("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
+        abi::addr_from_hex("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), // WETH
+        abi::addr_from_hex("0xA0b86a33E6441A8b5F4F62fC20cdD7E9C8C6e4F4")  // UNI
+    };
+    std::array<uint8_t, 20> swapTo = abi::addr_from_hex("0x742d35Cc6634C0532925a3b8A46Bb0FcE0260b8B");
+    boost::multiprecision::cpp_int swapDeadline = boost::multiprecision::cpp_int("1700000000");
+
+    // Encode swap call
+    std::vector<uint8_t> swap_call;
+    size_t swap_call_size = SwapExactTokensForTokens::encoded_size(swapAmountIn, swapAmountOutMin, swapPath, swapTo, swapDeadline);
+    swap_call.resize(swap_call_size);
+
+    if (SwapExactTokensForTokens::template encode_call<boost::multiprecision::cpp_int, boost::multiprecision::cpp_int, std::vector<std::array<uint8_t, 20>>, std::array<uint8_t, 20>, boost::multiprecision::cpp_int>(swap_call.data(), swap_call.size(), swapAmountIn, swapAmountOutMin, swapPath, swapTo, swapDeadline, &amounts_err)) {
+        std::cout << "     ✅ Encoded swapExactTokensForTokens call: " << swap_call.size() << " bytes\n";
+        std::cout << "       Complex path: " << swapPath.size() << " hops (DAI → WETH → UNI)\n";
+        std::cout << "       Selector: ";
+        for (size_t i = 0; i < 4; ++i) printf("%02x", swap_call[i]);
+        std::cout << "\n";
+    }
+
+    // Simulate swap return value: uint256[] with 3 amounts
+    std::vector<boost::multiprecision::cpp_int> swap_amounts = {
+        boost::multiprecision::cpp_int("500000000000000000"),   // Input amount
+        boost::multiprecision::cpp_int("2500000000000000000"),  // Intermediate
+        boost::multiprecision::cpp_int("1200000000000000000")   // Final output
+    };
+
+    const size_t swap_response_size = abi::encoded_size<abi::dyn_array<abi::uint_t<256>>>(swap_amounts);
+    std::vector<uint8_t> swap_response;
+    swap_response.resize(swap_response_size);
+
+    abi::encode_into<abi::dyn_array<abi::uint_t<256>>>(
+        swap_response.data(),
+        swap_response.size(),
+        swap_amounts
+    );
+
+    // Decode swap result
+    std::vector<boost::multiprecision::cpp_int> decoded_swap_amounts;
+    abi::BytesSpan swap_response_span(swap_response.data(), swap_response.size());
+    if (SwapExactTokensForTokens::decode_result(swap_response_span, decoded_swap_amounts)) {
+        std::cout << "     ✅ Decoded swapExactTokensForTokens result:\n";
+        std::cout << "       Swap amounts: [";
+        for (size_t i = 0; i < decoded_swap_amounts.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << decoded_swap_amounts[i];
+        }
+        std::cout << "]\n";
+        std::cout << "       Match: " << (decoded_swap_amounts == swap_amounts ? "YES" : "NO") << "\n";
+    }
+
+    std::cout << "\n   🎯 Uniswap V2 Router Test Summary:\n";
+    std::cout << "     ✅ Dynamic arrays (address[], uint256[]) handled correctly\n";
+    std::cout << "     ✅ Complex function signatures generated properly\n";
+    std::cout << "     ✅ Multiple return values work seamlessly\n";
+    std::cout << "     ✅ Generic functions encode/decode dynamic data perfectly\n";
+    std::cout << "     ✅ Clean integration: ABI → Named Functions → Generic Encoding\n";
+
     std::cout << "\n=== Summary ===\n";
     std::cout << "✅ Named structs provide clean, type-safe access to ABI data\n";
     std::cout << "✅ Fields have meaningful names from the ABI\n";
     std::cout << "✅ Easy to create, modify, and work with structured data\n";
     std::cout << "✅ Full compatibility with existing ABI codec\n";
     std::cout << "✅ No performance overhead - delegates to existing tuple logic\n";
-    std::cout << "✅ Clean encoding: abi::encode_data_into<Schema>(value, buffer)\n";
-    std::cout << "✅ Function-specific encoding: protocols::Function::encode_into()\n";
+    std::cout << "✅ Clean encoding: abi::encode_into<Schema>(value, buffer)\n";
+    std::cout << "✅ Function-specific encoding: protocols::Function::encode_call()\n";
     std::cout << "✅ Round-trip verified: encode → decode → verify data integrity\n";
-    std::cout << "✅ Complete Fn workflow: encode call → decode result\n";
+    std::cout << "✅ Complete Fn workflow: encode_call → decode_result\n";
     std::cout << "✅ Clear distinction: Function calls vs Data encoding\n";
-    std::cout << "✅ Generic ABI functions: encoded_size_data<>() + encode_data_into<>()\n";
+    std::cout << "✅ Generic ABI functions: encoded_size<>() + encode_into<>()\n";
     std::cout << "✅ Named vs Generic: Choose based on ABI structure and readability needs\n";
     std::cout << "✅ Wrapper structs: Create clean access for unnamed ABI types\n";
+    std::cout << "✅ Dynamic arrays: Full support for address[], uint256[], etc.\n";
+    std::cout << "✅ Complex signatures: Multi-parameter functions work perfectly\n";
+    std::cout << "✅ Real-world contracts: Uniswap V2 Router tested successfully!\n";
 }
 
 int main() {

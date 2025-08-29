@@ -4,6 +4,9 @@
   "type": "module",
   "scripts": {
     "test": "node scripts/generate_from_abi_json.mjs && cmake -B build && cmake --build build && ABI_SCRIPTS_DIR=scripts ./build/tests/abi_tests",
+    "test:unit": "cd build && ABI_SCRIPTS_DIR=../scripts ./tests/abi_tests",
+    "test:blockchain": "cd build && ETH_RPC_URL=$ETH_RPC_URL ABI_SCRIPTS_DIR=../scripts ./tests/abi_tests",
+    "test:integration": "node scripts/test_real_contracts.mjs",
     "generate-headers": "node scripts/generate_from_abi_json.mjs"
   },
   "dependencies": {
