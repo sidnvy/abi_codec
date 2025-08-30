@@ -119,10 +119,22 @@ function canonicalSignature(abiItem) {
   return `${abiItem.name}(${inputs})`;
 }
 
+function canonicalEventSignature(abiItem) {
+  // Event signature includes ALL parameters (both indexed and non-indexed)
+  const inputs = (abiItem.inputs || []).map(canonicalType).join(',');
+  return `${abiItem.name}(${inputs})`;
+}
+
 function calculateSelector(abiItem) {
   const sig = canonicalSignature(abiItem);
   const hash = keccak256(toUtf8Bytes(sig));
   return hash.slice(0, 10); // 0x + 8 hex chars
+}
+
+function calculateEventTopic(abiItem) {
+  const sig = canonicalEventSignature(abiItem);
+  const hash = keccak256(toUtf8Bytes(sig));
+  return hash.slice(0, 66); // 0x + 64 hex chars (32 bytes)
 }
 
 // ---------- C++ type mapping from ABI param object ----------
@@ -198,7 +210,7 @@ function cppBaseTypeFrom(param) {
   return baseTypeMap[base] || 'uint_t<256>'; // conservative fallback
 }
 
-// ---------- Function type generation ----------
+// ---------- Function/Event type generation ----------
 
 function generateCppType(abiItem) {
   if (abiItem.type !== 'function') return null;
@@ -220,10 +232,35 @@ function generateCppType(abiItem) {
   return { returnType, inputTypes };
 }
 
+function generateEventType(abiItem) {
+  if (abiItem.type !== 'event') return null;
+
+  // Separate indexed and non-indexed parameters
+  const indexedParams = (abiItem.inputs || []).filter(p => p.indexed);
+  const nonIndexedParams = (abiItem.inputs || []).filter(p => !p.indexed);
+
+  // Data types (non-indexed parameters only)
+  const dataTypes = nonIndexedParams.map(cppTypeForParam);
+
+  return {
+    indexedParams,
+    nonIndexedParams,
+    dataTypes,
+    isAnonymous: abiItem.anonymous || false
+  };
+}
+
 function selectorToHex(selector) {
   const hex = selector.slice(2);
   const bytes = [];
   for (let i = 0; i < 8; i += 2) bytes.push(`0x${hex.slice(i, i + 2)}`);
+  return bytes.join(',');
+}
+
+function topicToHex(topic) {
+  const hex = topic.slice(2);
+  const bytes = [];
+  for (let i = 0; i < 64; i += 2) bytes.push(`0x${hex.slice(i, i + 2)}`);
   return bytes.join(',');
 }
 
@@ -286,6 +323,47 @@ function generateNamedSchemas() {
     output += `    return s;\n`;
     output += `  }\n`;
 
+    // Add from_non_indexed method for complete structs (if this has indexed fields)
+    if (structInfo.fields && structInfo.fields.some(f => f && f.indexed)) {
+      // This is a complete struct with both indexed and non-indexed fields
+      const contractName = structInfo.contract;
+      const baseName = structInfo.name.replace('CompleteEventData', 'EventData');
+      const nonIndexedStructName = `${contractName}_${baseName}`;
+
+      output += `\n  // Initialize from non-indexed data (for complete event decoding)\n`;
+      output += `  static ${structName} from_non_indexed(const ${nonIndexedStructName}& non_indexed) {\n`;
+      output += `    ${structName} s{};\n`;
+
+      // Copy non-indexed fields from the non-indexed struct
+      const nonIndexedFields = structInfo.fields.filter(f => f && !f.indexed);
+      nonIndexedFields.forEach((field) => {
+        if (field) {
+          const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
+          output += `    s.${fieldName} = non_indexed.${fieldName};\n`;
+        }
+      });
+
+      // Initialize indexed fields to default values
+      const indexedFields = structInfo.fields.filter(f => f && f.indexed);
+      indexedFields.forEach(field => {
+        if (field) {
+          const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
+          if (field.type === 'address') {
+            output += `    s.${fieldName} = {}; // Will be filled from topics\n`;
+          } else if (field.type.startsWith('uint') || field.type.startsWith('int')) {
+            output += `    s.${fieldName} = 0; // Will be filled from topics\n`;
+          } else if (field.type === 'bool') {
+            output += `    s.${fieldName} = false; // Will be filled from topics\n`;
+          } else {
+            output += `    // ${fieldName} will be filled from topics\n`;
+          }
+        }
+      });
+
+      output += `    return s;\n`;
+      output += `  }\n`;
+    }
+
     output += `};\n\n`;
   }
 
@@ -294,6 +372,11 @@ function generateNamedSchemas() {
 
 function generateTraitsSpecializations() {
   let traits = '';
+
+  console.log(`generateTraitsSpecializations called with ${namedStructs.size} named structs:`);
+  for (const [key, value] of namedStructs) {
+    console.log(`  - ${key}: ${value.contract}_${value.name}`);
+  }
 
   // Generate value_of specializations first
   traits += `// value_of specializations for named structs\n`;
@@ -364,7 +447,7 @@ async function generateProtocolsHeader() {
 namespace abi {
 namespace protocols {
 
-${generateNamedSchemas()}
+// NAMED_SCHEMAS_PLACEHOLDER
 
 } // namespace protocols
 
@@ -372,13 +455,51 @@ ${generateNamedSchemas()}
 // Traits specializations for named structs (in abi namespace)
 // ==============================
 
-${generateTraitsSpecializations()}
+// TRAITS_SPECIALIZATIONS_PLACEHOLDER
 
 } // namespace abi
 
 namespace abi {
 namespace protocols {
 `;
+
+  // First pass: collect all named structs from all ABIs
+  for (const [contractName, abiPath] of Object.entries(abiFiles)) {
+    try {
+      const abiContent = fs.readFileSync(abiPath, 'utf8');
+      const abi = JSON.parse(abiContent);
+
+      // Process events to collect named structs
+      for (const item of abi) {
+        if (item.type === 'event') {
+          const eventType = generateEventType(item);
+          if (eventType && !eventType.isAnonymous && eventType.dataTypes.length > 0) {
+            const nonIndexedParams = item.inputs.filter(input => !input.indexed);
+            if (nonIndexedParams.length > 0) {
+              const fullName = `${contractName}.${toPascalCase(item.name)}EventData`;
+
+              if (!namedStructs.has(fullName)) {
+                console.log(`Adding event data struct: ${fullName}`);
+                namedStructs.set(fullName, {
+                  contract: contractName,
+                  name: `${toPascalCase(item.name)}EventData`,
+                  fields: nonIndexedParams.map(param => ({
+                    name: param.name,
+                    type: param.type,
+                    internalType: param.internalType,
+                    components: param.components
+                  }))
+                });
+                console.log(`Event data fields:`, nonIndexedParams.map(p => p.name));
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error processing ${abiPath}:`, error.message);
+    }
+  }
 
   // Second pass: process each ABI file for function generation
   for (const [contractName, abiPath] of Object.entries(abiFiles)) {
@@ -414,6 +535,37 @@ namespace protocols {
           }
 
           header += '\n';
+        } else if (item.type === 'event') {
+          const topicName = `Topic_${contractName}_${toPascalCase(item.name)}`;
+
+          // Calculate topic hash using event signature (ALL params)
+          const topic = calculateEventTopic(item);
+
+          // Build the event signature for the comment
+          const signature = canonicalEventSignature(item);
+
+          const hexBytes = topicToHex(topic);
+          header += `struct ${topicName} { static constexpr std::array<uint8_t,32> value{{${hexBytes}}}; }; // "${signature}"\n`;
+
+          // Generate event typedef
+          const eventType = generateEventType(item);
+          if (eventType && !eventType.isAnonymous) {
+            const eventName = `${contractName}_${toPascalCase(item.name)}Event`;
+            const eventDataName = `${contractName}_${toPascalCase(item.name)}EventData`;
+
+            // Collect non-indexed parameters only (simpler approach)
+            const nonIndexedParams = item.inputs.filter(input => !input.indexed);
+
+            if (nonIndexedParams.length > 0) {
+              // Event typedef for non-indexed parameters
+              header += `using ${eventName} = Event<${topicName}, ${eventDataName}>;\n`;
+            } else {
+              // Events with no non-indexed parameters are not supported
+              console.log(`Skipping ${eventName}: no non-indexed parameters`);
+            }
+          }
+
+          header += '\n';
         }
       }
 
@@ -424,7 +576,15 @@ namespace protocols {
 
   header += `} // namespace protocols\n`;
   header += `} // namespace abi\n`;
-  
+
+  // Replace the placeholder with actual named schemas
+  const namedSchemasOutput = generateNamedSchemas();
+  header = header.replace('// NAMED_SCHEMAS_PLACEHOLDER', namedSchemasOutput);
+
+  // Replace the traits specializations placeholder
+  const traitsOutput = generateTraitsSpecializations();
+  header = header.replace('// TRAITS_SPECIALIZATIONS_PLACEHOLDER', traitsOutput);
+
   return header;
 }
 

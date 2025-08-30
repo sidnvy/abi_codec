@@ -68,6 +68,11 @@ template<class... Ts>       struct value_of<tuple<Ts...>>      { using type = st
 // Convenience alias for cleaner field type declarations
 template<class S> using cpp_t = typename value_of<S>::type;
 
+// Common types for indexed parameter extraction
+using uint256_t = cpp_t<uint_t<256>>;
+using int256_t = cpp_t<int_t<256>>;
+using address_t = cpp_t<address20>;
+
 // ----------------- helpers -----------------
 inline constexpr size_t pad32(size_t n){ return (n + 31) & ~size_t(31); }
 
@@ -320,7 +325,7 @@ struct traits<dyn_array<T>>{
         running += traits<T>::tail_size(v[i]);
       }
     } else {
-      // ✅ FIX: use full stride for static elements
+      // Fix: use full stride for static elements
       const size_t stride = 32 * traits<T>::head_words;
       for (size_t i = 0; i < v.size(); ++i) {
         traits<T>::encode_head(out + cursor + i * stride, 0, v[i], 0);
@@ -706,6 +711,47 @@ struct Fn {
   // Return value decoding (input: response data, output: decoded result)
   static bool decode_result(BytesSpan in, return_t& out, Error* e=nullptr){
     return decode_from<RetSchema>(in, out, e);
+  }
+};
+
+// ----------------- Event wrapper (C++17 topic hash type) -----------------
+// Provide a Topic type with: static constexpr std::array<uint8_t,32> value;
+
+template<class Topic, class NamedStruct>
+struct Event {
+  // Event topic hash (32 bytes)
+  static constexpr std::array<uint8_t,32> topic_hash = Topic::value;
+  using data_schema = typename NamedStruct::schema;
+  using data_tuple_type = typename value_of<data_schema>::type;
+
+  // Event data encoding/decoding (non-indexed parameters only)
+  template<class... Vs>
+  static size_t encoded_data_size(const Vs&... vs){
+    return encoded_size<data_schema>(std::make_tuple(vs...));
+  }
+
+  static size_t encoded_data_size() {
+    return encoded_size<data_schema>(data_tuple_type{});
+  }
+
+  template<class... Vs>
+  static bool encode_data(uint8_t* out, size_t cap, const Vs&... vs, Error* e = nullptr){
+    return encode_into<data_schema>(out, cap, std::make_tuple(vs...), e);
+  }
+
+  // Named struct decoding (non-indexed parameters only)
+  static bool decode_data(BytesSpan in, NamedStruct& out, Error* e = nullptr){
+    data_tuple_type tuple_data;
+    if (!decode_from<data_schema>(in, tuple_data, e)) {
+      return false;
+    }
+    out = NamedStruct::from_tuple(tuple_data);
+    return true;
+  }
+
+  // Utility to check if a topic matches this event
+  static bool matches_topic(BytesSpan topic) {
+    return topic.size() == 32 && std::memcmp(topic.data(), topic_hash.data(), 32) == 0;
   }
 };
 

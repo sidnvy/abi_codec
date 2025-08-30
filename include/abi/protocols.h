@@ -2,7 +2,7 @@
 
 #include "abi.h"
 
-// Auto-generated from ABI JSON files on 2025-08-29T17:15:32.636Z
+// Auto-generated from ABI JSON files on 2025-08-30T04:46:56.437Z
 // Run: node scripts/generate_from_abi_json.mjs
 
 // ==============================
@@ -232,6 +232,190 @@ struct Multicall3_Call3Value {
   }
 };
 
+// ---------- Named schema for ERC20.TransferEventData ----------
+struct ERC20_TransferEventData {
+  abi::cpp_t<uint_t<256>> value;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<uint_t<256>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const ERC20_TransferEventData& s) {
+    return std::make_tuple(
+      s.value
+    );
+  }
+
+  // Conversion from underlying tuple
+  static ERC20_TransferEventData from_tuple(const abi::value_of<schema>::type& t) {
+    ERC20_TransferEventData s{};
+    s.value = std::get<0>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for ERC20.ApprovalEventData ----------
+struct ERC20_ApprovalEventData {
+  abi::cpp_t<uint_t<256>> value;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<uint_t<256>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const ERC20_ApprovalEventData& s) {
+    return std::make_tuple(
+      s.value
+    );
+  }
+
+  // Conversion from underlying tuple
+  static ERC20_ApprovalEventData from_tuple(const abi::value_of<schema>::type& t) {
+    ERC20_ApprovalEventData s{};
+    s.value = std::get<0>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for UniswapV3Pool.InitializeEventData ----------
+struct UniswapV3Pool_InitializeEventData {
+  abi::cpp_t<uint_t<160>> sqrtPriceX96;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<uint_t<160>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const UniswapV3Pool_InitializeEventData& s) {
+    return std::make_tuple(
+      s.sqrtPriceX96
+    );
+  }
+
+  // Conversion from underlying tuple
+  static UniswapV3Pool_InitializeEventData from_tuple(const abi::value_of<schema>::type& t) {
+    UniswapV3Pool_InitializeEventData s{};
+    s.sqrtPriceX96 = std::get<0>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for UniswapV3Pool.SwapEventData ----------
+struct UniswapV3Pool_SwapEventData {
+  abi::cpp_t<int_t<256>> amount0;
+  abi::cpp_t<int_t<256>> amount1;
+  abi::cpp_t<uint_t<160>> sqrtPriceX96;
+  abi::cpp_t<uint_t<128>> liquidity;
+  abi::cpp_t<int_t<24>> tick;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<int_t<256>, int_t<256>, uint_t<160>, uint_t<128>, int_t<24>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const UniswapV3Pool_SwapEventData& s) {
+    return std::make_tuple(
+      s.amount0,
+      s.amount1,
+      s.sqrtPriceX96,
+      s.liquidity,
+      s.tick
+    );
+  }
+
+  // Conversion from underlying tuple
+  static UniswapV3Pool_SwapEventData from_tuple(const abi::value_of<schema>::type& t) {
+    UniswapV3Pool_SwapEventData s{};
+    s.amount0 = std::get<0>(t);
+    s.amount1 = std::get<1>(t);
+    s.sqrtPriceX96 = std::get<2>(t);
+    s.liquidity = std::get<3>(t);
+    s.tick = std::get<4>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for UniswapV3Pool.MintEventData ----------
+struct UniswapV3Pool_MintEventData {
+  abi::cpp_t<uint_t<128>> amount;
+  abi::cpp_t<uint_t<256>> amount0;
+  abi::cpp_t<uint_t<256>> amount1;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<uint_t<128>, uint_t<256>, uint_t<256>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const UniswapV3Pool_MintEventData& s) {
+    return std::make_tuple(
+      s.amount,
+      s.amount0,
+      s.amount1
+    );
+  }
+
+  // Conversion from underlying tuple
+  static UniswapV3Pool_MintEventData from_tuple(const abi::value_of<schema>::type& t) {
+    UniswapV3Pool_MintEventData s{};
+    s.amount = std::get<0>(t);
+    s.amount0 = std::get<1>(t);
+    s.amount1 = std::get<2>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for UniswapV3Pool.BurnEventData ----------
+struct UniswapV3Pool_BurnEventData {
+  abi::cpp_t<uint_t<128>> amount;
+  abi::cpp_t<uint_t<256>> amount0;
+  abi::cpp_t<uint_t<256>> amount1;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<uint_t<128>, uint_t<256>, uint_t<256>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const UniswapV3Pool_BurnEventData& s) {
+    return std::make_tuple(
+      s.amount,
+      s.amount0,
+      s.amount1
+    );
+  }
+
+  // Conversion from underlying tuple
+  static UniswapV3Pool_BurnEventData from_tuple(const abi::value_of<schema>::type& t) {
+    UniswapV3Pool_BurnEventData s{};
+    s.amount = std::get<0>(t);
+    s.amount0 = std::get<1>(t);
+    s.amount1 = std::get<2>(t);
+    return s;
+  }
+};
+
+// ---------- Named schema for UniswapV3Pool.CollectEventData ----------
+struct UniswapV3Pool_CollectEventData {
+  abi::cpp_t<address20> recipient;
+  abi::cpp_t<uint_t<128>> amount0;
+  abi::cpp_t<uint_t<128>> amount1;
+
+  // Underlying ABI schema
+  using schema = abi::tuple<address20, uint_t<128>, uint_t<128>>;
+
+  // Conversion to underlying tuple
+  static abi::value_of<schema>::type to_tuple(const UniswapV3Pool_CollectEventData& s) {
+    return std::make_tuple(
+      s.recipient,
+      s.amount0,
+      s.amount1
+    );
+  }
+
+  // Conversion from underlying tuple
+  static UniswapV3Pool_CollectEventData from_tuple(const abi::value_of<schema>::type& t) {
+    UniswapV3Pool_CollectEventData s{};
+    s.recipient = std::get<0>(t);
+    s.amount0 = std::get<1>(t);
+    s.amount1 = std::get<2>(t);
+    return s;
+  }
+};
+
 
 
 } // namespace protocols
@@ -248,6 +432,13 @@ template<> struct value_of<protocols::Multicall3_Call> { using type = protocols:
 template<> struct value_of<protocols::Multicall3_Call3> { using type = protocols::Multicall3_Call3; };
 template<> struct value_of<protocols::Multicall3_Result> { using type = protocols::Multicall3_Result; };
 template<> struct value_of<protocols::Multicall3_Call3Value> { using type = protocols::Multicall3_Call3Value; };
+template<> struct value_of<protocols::ERC20_TransferEventData> { using type = protocols::ERC20_TransferEventData; };
+template<> struct value_of<protocols::ERC20_ApprovalEventData> { using type = protocols::ERC20_ApprovalEventData; };
+template<> struct value_of<protocols::UniswapV3Pool_InitializeEventData> { using type = protocols::UniswapV3Pool_InitializeEventData; };
+template<> struct value_of<protocols::UniswapV3Pool_SwapEventData> { using type = protocols::UniswapV3Pool_SwapEventData; };
+template<> struct value_of<protocols::UniswapV3Pool_MintEventData> { using type = protocols::UniswapV3Pool_MintEventData; };
+template<> struct value_of<protocols::UniswapV3Pool_BurnEventData> { using type = protocols::UniswapV3Pool_BurnEventData; };
+template<> struct value_of<protocols::UniswapV3Pool_CollectEventData> { using type = protocols::UniswapV3Pool_CollectEventData; };
 
 // traits specializations that delegate to underlying tuple schema
 template<> struct traits<protocols::IUniswapV3Pool_Slot0> {
@@ -425,6 +616,181 @@ template<> struct traits<protocols::Multicall3_Call3Value> {
   }
 };
 
+template<> struct traits<protocols::ERC20_TransferEventData> {
+  using S = typename protocols::ERC20_TransferEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::ERC20_TransferEventData& v) {
+    return traits<S>::tail_size( protocols::ERC20_TransferEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::ERC20_TransferEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::ERC20_TransferEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::ERC20_TransferEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::ERC20_TransferEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::ERC20_TransferEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::ERC20_TransferEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::ERC20_ApprovalEventData> {
+  using S = typename protocols::ERC20_ApprovalEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::ERC20_ApprovalEventData& v) {
+    return traits<S>::tail_size( protocols::ERC20_ApprovalEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::ERC20_ApprovalEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::ERC20_ApprovalEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::ERC20_ApprovalEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::ERC20_ApprovalEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::ERC20_ApprovalEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::ERC20_ApprovalEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::UniswapV3Pool_InitializeEventData> {
+  using S = typename protocols::UniswapV3Pool_InitializeEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::UniswapV3Pool_InitializeEventData& v) {
+    return traits<S>::tail_size( protocols::UniswapV3Pool_InitializeEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::UniswapV3Pool_InitializeEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::UniswapV3Pool_InitializeEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::UniswapV3Pool_InitializeEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::UniswapV3Pool_InitializeEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::UniswapV3Pool_InitializeEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::UniswapV3Pool_InitializeEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::UniswapV3Pool_SwapEventData> {
+  using S = typename protocols::UniswapV3Pool_SwapEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::UniswapV3Pool_SwapEventData& v) {
+    return traits<S>::tail_size( protocols::UniswapV3Pool_SwapEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::UniswapV3Pool_SwapEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::UniswapV3Pool_SwapEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::UniswapV3Pool_SwapEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::UniswapV3Pool_SwapEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::UniswapV3Pool_SwapEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::UniswapV3Pool_SwapEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::UniswapV3Pool_MintEventData> {
+  using S = typename protocols::UniswapV3Pool_MintEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::UniswapV3Pool_MintEventData& v) {
+    return traits<S>::tail_size( protocols::UniswapV3Pool_MintEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::UniswapV3Pool_MintEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::UniswapV3Pool_MintEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::UniswapV3Pool_MintEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::UniswapV3Pool_MintEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::UniswapV3Pool_MintEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::UniswapV3Pool_MintEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::UniswapV3Pool_BurnEventData> {
+  using S = typename protocols::UniswapV3Pool_BurnEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::UniswapV3Pool_BurnEventData& v) {
+    return traits<S>::tail_size( protocols::UniswapV3Pool_BurnEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::UniswapV3Pool_BurnEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::UniswapV3Pool_BurnEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::UniswapV3Pool_BurnEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::UniswapV3Pool_BurnEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::UniswapV3Pool_BurnEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::UniswapV3Pool_BurnEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
+template<> struct traits<protocols::UniswapV3Pool_CollectEventData> {
+  using S = typename protocols::UniswapV3Pool_CollectEventData::schema;
+  static constexpr bool is_dynamic  = traits<S>::is_dynamic;
+  static constexpr size_t head_words= traits<S>::head_words;
+
+  static size_t tail_size(const protocols::UniswapV3Pool_CollectEventData& v) {
+    return traits<S>::tail_size( protocols::UniswapV3Pool_CollectEventData::to_tuple(v) );
+  }
+
+  static void encode_head(uint8_t* out32, size_t hi, const protocols::UniswapV3Pool_CollectEventData& v, size_t base) {
+    traits<S>::encode_head(out32, hi, protocols::UniswapV3Pool_CollectEventData::to_tuple(v), base);
+  }
+
+  static void encode_tail(uint8_t* out, size_t base, const protocols::UniswapV3Pool_CollectEventData& v) {
+    traits<S>::encode_tail(out, base, protocols::UniswapV3Pool_CollectEventData::to_tuple(v));
+  }
+
+  static bool decode(BytesSpan in, protocols::UniswapV3Pool_CollectEventData& out, Error* e=nullptr) {
+    abi::value_of<S>::type tmp;
+    if (!traits<S>::decode(in, tmp, e)) return false;
+    out = protocols::UniswapV3Pool_CollectEventData::from_tuple(tmp);
+    return true;
+  }
+};
+
 
 
 } // namespace abi
@@ -462,6 +828,12 @@ using ERC20_Transfer = Fn<Sel_ERC20_transfer, bool_t, address20, uint_t<256>>;
 struct Sel_ERC20_allowance { static constexpr std::array<uint8_t,4> value{{0xdd,0x62,0xed,0x3e}}; }; // "allowance(address,address)"
 using ERC20_Allowance = Fn<Sel_ERC20_allowance, uint_t<256>, address20, address20>;
 
+struct Topic_ERC20_Transfer { static constexpr std::array<uint8_t,32> value{{0xdd,0xf2,0x52,0xad,0x1b,0xe2,0xc8,0x9b,0x69,0xc2,0xb0,0x68,0xfc,0x37,0x8d,0xaa,0x95,0x2b,0xa7,0xf1,0x63,0xc4,0xa1,0x16,0x28,0xf5,0x5a,0x4d,0xf5,0x23,0xb3,0xef}}; }; // "Transfer(address,address,uint256)"
+using ERC20_TransferEvent = Event<Topic_ERC20_Transfer, ERC20_TransferEventData>;
+
+struct Topic_ERC20_Approval { static constexpr std::array<uint8_t,32> value{{0x8c,0x5b,0xe1,0xe5,0xeb,0xec,0x7d,0x5b,0xd1,0x4f,0x71,0x42,0x7d,0x1e,0x84,0xf3,0xdd,0x03,0x14,0xc0,0xf7,0xb2,0x29,0x1e,0x5b,0x20,0x0a,0xc8,0xc7,0xc3,0xb9,0x25}}; }; // "Approval(address,address,uint256)"
+using ERC20_ApprovalEvent = Event<Topic_ERC20_Approval, ERC20_ApprovalEventData>;
+
 // ==============================
 // UniswapV3Pool
 // ==============================
@@ -483,6 +855,21 @@ using UniswapV3Pool_Ticks = Fn<Sel_UniswapV3Pool_ticks, IUniswapV3Pool_Tick, int
 
 struct Sel_UniswapV3Pool_observe { static constexpr std::array<uint8_t,4> value{{0x88,0x3b,0xdb,0xfd}}; }; // "observe(uint32[])"
 using UniswapV3Pool_Observe = Fn<Sel_UniswapV3Pool_observe, tuple<dyn_array<int_t<56>>, dyn_array<uint_t<160>>>, dyn_array<uint_t<32>>>;
+
+struct Topic_UniswapV3Pool_Initialize { static constexpr std::array<uint8_t,32> value{{0xf1,0x1e,0x37,0x8f,0x08,0x77,0x56,0xb9,0x55,0xb1,0x47,0x25,0x5a,0x5f,0x1e,0xf7,0x7d,0x45,0xa0,0x58,0xa9,0x6d,0x98,0xb7,0xc0,0xe5,0xec,0x0d,0xa2,0x4f,0x8b,0x45}}; }; // "Initialize(int24,uint160)"
+using UniswapV3Pool_InitializeEvent = Event<Topic_UniswapV3Pool_Initialize, UniswapV3Pool_InitializeEventData>;
+
+struct Topic_UniswapV3Pool_Swap { static constexpr std::array<uint8_t,32> value{{0xc4,0x20,0x79,0xf9,0x4a,0x63,0x50,0xd7,0xe6,0x23,0x5f,0x29,0x17,0x49,0x24,0xf9,0x28,0xcc,0x2a,0xc8,0x18,0xeb,0x64,0xfe,0xd8,0x00,0x4e,0x11,0x5f,0xbc,0xca,0x67}}; }; // "Swap(address,address,int256,int256,uint160,uint128,int24)"
+using UniswapV3Pool_SwapEvent = Event<Topic_UniswapV3Pool_Swap, UniswapV3Pool_SwapEventData>;
+
+struct Topic_UniswapV3Pool_Mint { static constexpr std::array<uint8_t,32> value{{0x7a,0x53,0x08,0x0b,0xa4,0x14,0x15,0x8b,0xe7,0xec,0x69,0xb9,0x87,0xb5,0xfb,0x7d,0x07,0xde,0xe1,0x01,0xfe,0x85,0x48,0x8f,0x08,0x53,0xae,0x16,0x23,0x9d,0x0b,0xde}}; }; // "Mint(address,address,int24,int24,uint128,uint256,uint256)"
+using UniswapV3Pool_MintEvent = Event<Topic_UniswapV3Pool_Mint, UniswapV3Pool_MintEventData>;
+
+struct Topic_UniswapV3Pool_Burn { static constexpr std::array<uint8_t,32> value{{0x0c,0x39,0x6c,0xd9,0x89,0xa3,0x9f,0x44,0x59,0xb5,0xfa,0x1a,0xed,0x6a,0x9a,0x8d,0xcd,0xbc,0x45,0x90,0x8a,0xcf,0xd6,0x7e,0x02,0x8c,0xd5,0x68,0xda,0x98,0x98,0x2c}}; }; // "Burn(address,int24,int24,uint128,uint256,uint256)"
+using UniswapV3Pool_BurnEvent = Event<Topic_UniswapV3Pool_Burn, UniswapV3Pool_BurnEventData>;
+
+struct Topic_UniswapV3Pool_Collect { static constexpr std::array<uint8_t,32> value{{0x70,0x93,0x53,0x38,0xe6,0x97,0x75,0x45,0x6a,0x85,0xdd,0xef,0x22,0x6c,0x39,0x5f,0xb6,0x68,0xb6,0x3f,0xa0,0x11,0x5f,0x5f,0x20,0x61,0x0b,0x38,0x8e,0x6c,0xa9,0xc0}}; }; // "Collect(address,address,int24,int24,uint128,uint128)"
+using UniswapV3Pool_CollectEvent = Event<Topic_UniswapV3Pool_Collect, UniswapV3Pool_CollectEventData>;
 
 // ==============================
 // UniswapV3TickLens

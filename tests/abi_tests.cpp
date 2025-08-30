@@ -362,6 +362,188 @@ bool test_get_populated_ticks_vs_ethers(const std::array<uint8_t,20>& pool_addr,
   return true;
 }
 
+// Event validation tests against ethers.js
+bool test_event_topic_vs_ethers(const std::string& event_sig) {
+  const char* dir = std::getenv("ABI_SCRIPTS_DIR");
+  if (!dir) {
+    std::cout << "  Skipping - ABI_SCRIPTS_DIR not set\n";
+    return true;
+  }
+
+  // Get expected topic hash from ethers.js
+  std::string cmd = std::string("node ") + dir + "/encode_event.mjs \"" + event_sig + "\"";
+  const std::string ethers_output = util::run_node_and_capture(cmd);
+
+  // Extract topic hash from ethers output (first line after "Topic Hash: ")
+  size_t topic_pos = ethers_output.find("Topic Hash: ");
+  if (topic_pos == std::string::npos) {
+    std::cerr << "Failed to find topic hash in ethers output\n";
+    return false;
+  }
+  std::string ethers_topic = ethers_output.substr(topic_pos + 12, 66); // 0x + 64 hex chars
+
+  // Generate topic hash with our C++ implementation
+  // We need to find the corresponding event type and extract its topic hash
+  std::string cpp_topic;
+  if (event_sig.find("Transfer(") == 0) {
+    cpp_topic = "0x" + util::hex_lower(abi::protocols::ERC20_TransferEvent::topic_hash.data(),
+                                        abi::protocols::ERC20_TransferEvent::topic_hash.size());
+  } else if (event_sig.find("Approval(") == 0) {
+    cpp_topic = "0x" + util::hex_lower(abi::protocols::ERC20_ApprovalEvent::topic_hash.data(),
+                                        abi::protocols::ERC20_ApprovalEvent::topic_hash.size());
+  } else if (event_sig.find("Swap(") == 0) {
+    cpp_topic = "0x" + util::hex_lower(abi::protocols::UniswapV3Pool_SwapEvent::topic_hash.data(),
+                                        abi::protocols::UniswapV3Pool_SwapEvent::topic_hash.size());
+  } else if (event_sig.find("Mint(") == 0) {
+    cpp_topic = "0x" + util::hex_lower(abi::protocols::UniswapV3Pool_MintEvent::topic_hash.data(),
+                                        abi::protocols::UniswapV3Pool_MintEvent::topic_hash.size());
+  } else if (event_sig.find("Burn(") == 0) {
+    cpp_topic = "0x" + util::hex_lower(abi::protocols::UniswapV3Pool_BurnEvent::topic_hash.data(),
+                                        abi::protocols::UniswapV3Pool_BurnEvent::topic_hash.size());
+  } else {
+    std::cerr << "Unknown event signature: " << event_sig << "\n";
+    return false;
+  }
+
+  if (cpp_topic != ethers_topic) {
+    std::cerr << "Topic hash mismatch for " << event_sig << "\n";
+    std::cerr << "  ethers.js: " << ethers_topic << "\n";
+    std::cerr << "  C++      : " << cpp_topic << "\n";
+    return false;
+  }
+  return true;
+}
+
+// Event round-trip validation: ethers.js encode → C++ decode
+bool test_event_roundtrip_validation() {
+  const char* dir = std::getenv("ABI_SCRIPTS_DIR");
+  if (!dir) {
+    std::cout << "  Skipping - ABI_SCRIPTS_DIR not set\n";
+    return true;
+  }
+
+  // Test ERC20 Transfer event: ethers.js encode → C++ decode
+  // Use the existing encode_event.mjs script with known good data
+  std::string cmd = std::string("node ") + dir + "/encode_event.mjs \"Transfer(address indexed from, address indexed to, uint256 value)\" \"1000000000000000000\"";
+
+  const std::string ethers_output = util::run_node_and_capture(cmd);
+
+  // Extract the encoded data from ethers output
+  size_t data_pos = ethers_output.find("Encoded Data: ");
+  if (data_pos == std::string::npos) {
+    std::cerr << "Failed to find encoded data in ethers output\n";
+    return false;
+  }
+
+  std::string ethers_data_hex = ethers_output.substr(data_pos + 14);
+
+  // Convert hex string to bytes (skip 0x prefix if present)
+  std::vector<uint8_t> ethers_data;
+  size_t start = ethers_data_hex.substr(0, 2) == "0x" ? 2 : 0;
+  for (size_t i = start; i < ethers_data_hex.size(); i += 2) {
+    std::string byte_str = ethers_data_hex.substr(i, 2);
+    ethers_data.push_back(static_cast<uint8_t>(std::stoul(byte_str, nullptr, 16)));
+  }
+
+  // Now decode using our C++ implementation
+  using TransferEvent = abi::protocols::ERC20_TransferEvent;
+  using TransferEventData = abi::protocols::ERC20_TransferEventData;
+  abi::Error err;
+
+  // Decode into named struct (simplified API!)
+  TransferEventData decoded_data;
+  if (!TransferEvent::decode_data(abi::BytesSpan(ethers_data.data(), ethers_data.size()), decoded_data, &err)) {
+    std::cerr << "C++ decoding failed: " << err.message << "\n";
+    return false;
+  }
+
+  // Access field by name (clean and readable!)
+  auto decoded_value = decoded_data.value;
+  uint256_t expected_value("1000000000000000000");
+
+  if (decoded_value != expected_value) {
+    std::cerr << "Decoded value mismatch\n";
+    std::cerr << "  Expected: " << expected_value << "\n";
+    std::cerr << "  Got:      " << decoded_value << "\n";
+    return false;
+  }
+
+  return true;
+}
+
+// UniswapV3 Swap event round-trip validation
+bool test_uniswap_swap_roundtrip_validation() {
+  const char* dir = std::getenv("ABI_SCRIPTS_DIR");
+  if (!dir) {
+    std::cout << "  Skipping - ABI_SCRIPTS_DIR not set\n";
+    return true;
+  }
+
+  // Test UniswapV3 Swap event: ethers.js encode → C++ decode
+  // Use multiple arguments for the complex Swap event
+  std::string cmd = std::string("node ") + dir + "/encode_event.mjs \"Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)\" \"-1000000000000000000\" \"2000000000000000000\" \"429512873912345678901234567890\" \"1000000000000000000\" \"12345\"";
+
+  const std::string ethers_output = util::run_node_and_capture(cmd);
+
+  // Extract the encoded data from ethers output
+  size_t data_pos = ethers_output.find("Encoded Data: ");
+  if (data_pos == std::string::npos) {
+    std::cerr << "Failed to find encoded data in ethers output\n";
+    return false;
+  }
+
+  std::string ethers_data_hex = ethers_output.substr(data_pos + 14);
+
+  // Convert hex string to bytes (skip 0x prefix if present)
+  std::vector<uint8_t> ethers_data;
+  size_t start = ethers_data_hex.substr(0, 2) == "0x" ? 2 : 0;
+  for (size_t i = start; i < ethers_data_hex.size(); i += 2) {
+    std::string byte_str = ethers_data_hex.substr(i, 2);
+    ethers_data.push_back(static_cast<uint8_t>(std::stoul(byte_str, nullptr, 16)));
+  }
+
+  // Now decode using our C++ implementation
+  using SwapEvent = abi::protocols::UniswapV3Pool_SwapEvent;
+  using SwapEventData = abi::protocols::UniswapV3Pool_SwapEventData;
+  abi::Error err;
+
+  // Decode into named struct (simplified API!)
+  SwapEventData decoded_data;
+  if (!SwapEvent::decode_data(abi::BytesSpan(ethers_data.data(), ethers_data.size()), decoded_data, &err)) {
+    std::cerr << "C++ decoding failed: " << err.message << "\n";
+    return false;
+  }
+
+  // Access fields by name (clean and readable!)
+  auto decoded_amount0 = decoded_data.amount0;
+  auto decoded_amount1 = decoded_data.amount1;
+  auto decoded_sqrtPriceX96 = decoded_data.sqrtPriceX96;
+  auto decoded_liquidity = decoded_data.liquidity;
+  auto decoded_tick = decoded_data.tick;
+
+  uint256_t expected_amount0("-1000000000000000000");
+  uint256_t expected_amount1("2000000000000000000");
+  uint256_t expected_sqrtPriceX96("429512873912345678901234567890");
+  uint256_t expected_liquidity("1000000000000000000");
+  uint256_t expected_tick("12345");
+
+  if (decoded_amount0 != expected_amount0 ||
+      decoded_amount1 != expected_amount1 ||
+      decoded_sqrtPriceX96 != expected_sqrtPriceX96 ||
+      decoded_liquidity != expected_liquidity ||
+      decoded_tick != expected_tick) {
+    std::cerr << "UniswapV3 Swap decoded values mismatch\n";
+    std::cerr << "  Expected amount0: " << expected_amount0 << ", got: " << decoded_amount0 << "\n";
+    std::cerr << "  Expected amount1: " << expected_amount1 << ", got: " << decoded_amount1 << "\n";
+    std::cerr << "  Expected sqrtPriceX96: " << expected_sqrtPriceX96 << ", got: " << decoded_sqrtPriceX96 << "\n";
+    std::cerr << "  Expected liquidity: " << expected_liquidity << ", got: " << decoded_liquidity << "\n";
+    std::cerr << "  Expected tick: " << expected_tick << ", got: " << decoded_tick << "\n";
+    return false;
+  }
+
+  return true;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main: clear, grouped tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -448,6 +630,31 @@ int main() try {
       (test_get_populated_ticks_vs_ethers(
         abi::addr_from_hex("0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8"),
         boost::multiprecision::cpp_int("0"))));
+  }
+
+  // ── Event Ethers.js Validation Tests
+  std::cout << "\n== Event Ethers.js Validation Tests ==\n";
+  {
+    RUN_TEST("ERC20 Transfer Event topic hash vs ethers.js",
+      (test_event_topic_vs_ethers("Transfer(address,address,uint256)")));
+
+    RUN_TEST("ERC20 Approval Event topic hash vs ethers.js",
+      (test_event_topic_vs_ethers("Approval(address,address,uint256)")));
+
+    RUN_TEST("UniswapV3 Swap Event topic hash vs ethers.js",
+      (test_event_topic_vs_ethers("Swap(address,address,int256,int256,uint160,uint128,int24)")));
+
+    RUN_TEST("UniswapV3 Mint Event topic hash vs ethers.js",
+      (test_event_topic_vs_ethers("Mint(address,address,int24,int24,uint128,uint256,uint256)")));
+
+    RUN_TEST("UniswapV3 Burn Event topic hash vs ethers.js",
+      (test_event_topic_vs_ethers("Burn(address,int24,int24,uint128,uint256,uint256)")));
+
+    RUN_TEST("ERC20 Transfer Event round-trip validation (ethers.js encode → C++ decode)",
+      (test_event_roundtrip_validation()));
+
+    RUN_TEST("UniswapV3 Swap Event round-trip validation (ethers.js encode → C++ decode)",
+      (test_uniswap_swap_roundtrip_validation()));
   }
   std::cout << "\n== exhaustive value round-trips (basic correctness) ==\n";
   {

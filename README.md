@@ -6,9 +6,10 @@ A high-performance C++ library for Ethereum ABI encoding and decoding, with clea
 
 - **Header-only C++17 library** - No external dependencies except Boost.Multiprecision
 - **Ethereum ABI compliant** - Full Ethereum ABI specification support
+- **Clean Event Support** - Named field access only (no tuple compatibility)
 - **Validated against ethers.js** - All encodings tested for compatibility
 - **Real RPC testing** - Live Ethereum mainnet validation
-- **69 comprehensive tests** - Extensive test coverage
+- **77 comprehensive tests** - Extensive test coverage including event validation
 - **Named structs from ABI** - Clean, type-safe access to contract data
 - **Generic functions** - Flexible encoding/decoding for any schema
 - **Zero runtime overhead** - Template-based with compile-time optimization
@@ -113,6 +114,44 @@ abi::BytesSpan return_data(/* RPC response */, /* size */);
 Transfer::decode_result(return_data, transfer_success, &err);
 ```
 
+### Event Processing (Ethereum Logs)
+
+#### Clean Named Field Access (Only Interface)
+
+```cpp
+#include "abi/abi.h"
+#include "abi/protocols.h"
+
+// ERC20 Transfer event processing with NAMED FIELDS
+using TransferEvent = abi::protocols::ERC20_TransferEvent;
+using TransferEventData = abi::protocols::ERC20_TransferEventData;
+
+// Check if log matches Transfer event
+if (TransferEvent::matches_topic(log.topics[0])) {
+    // Clean  SIMPLIFIED: Decode using named struct (primary interface!)
+    TransferEventData transferData;
+    if (TransferEvent::decode_data(log.data, transferData)) {
+        std::cout << "Transfer value: " << transferData.value << " wei\n";
+        // Indexed parameters (from, to) are in topics[1], topics[2]
+        // *  Clean, type-safe field access!
+    }
+}
+
+// UniswapV3 Swap event processing with NAMED FIELDS
+using SwapEvent = abi::protocols::UniswapV3Pool_SwapEvent;
+using SwapEventData = abi::protocols::UniswapV3Pool_SwapEventData;
+
+if (SwapEvent::matches_topic(log.topics[0])) {
+    // Clean  CLEAN: Decode using named struct (only interface!)
+    SwapEventData swapData;
+    SwapEvent::decode_data(log.data, swapData);
+    std::cout << "Swap amounts: " << swapData.amount0 << " → " << swapData.amount1 << "\n";
+    std::cout << "Price: " << swapData.sqrtPriceX96 << ", Tick: " << swapData.tick << "\n";
+    std::cout << "Liquidity: " << swapData.liquidity << "\n";
+    // *  Type-safe, readable field access!
+}
+```
+
 ## API Reference
 
 ### Core Types
@@ -179,26 +218,77 @@ namespace abi::protocols {
 }
 ```
 
-### Legacy API (Deprecated)
+### Event Processing (Ethereum Logs)
+
 ```cpp
-// For backward compatibility - these will show deprecation warnings
-namespace abi {
-    template<class Schema, class V>
-    [[deprecated("Use encoded_size instead")]]
-    size_t encoded_size_data(const V& value);
+// Event wrapper (C++17 topic hash type)
+template<class Topic, class... DataSchemas>
+struct Event {
+  // Event topic hash (32 bytes)
+  static constexpr std::array<uint8_t,32> topic_hash = Topic::value;
+  using data_tuple_type = typename value_of<tuple<DataSchemas...>>::type;
 
-    template<class Schema, class V>
-    [[deprecated("Use encode_into instead")]]
-    bool encode_data_into(uint8_t* out, size_t cap, const V& value, Error* e=nullptr);
+  // Event data encoding/decoding (non-indexed parameters only)
+  template<class... Vs>
+  static size_t encoded_data_size(const Vs&... vs){
+    return encoded_size<data_tuple_type>(std::make_tuple(vs...));
+  }
 
-    template<class... Schemas, class... Vs>
-    [[deprecated("Use encoded_size_call instead")]]
-    size_t encoded_size_args(const std::tuple<Vs...>& args);
+  template<class... Vs>
+  static bool encode_data(uint8_t* out, size_t cap, const Vs&... vs, Error* e = nullptr){
+    return encode_into<data_tuple_type>(out, cap, std::make_tuple(vs...), e);
+  }
 
-    template<class... Schemas, class... Vs>
-    [[deprecated("Use encode_call_into instead")]]
-    bool encode_args_into(uint8_t* out, size_t out_cap, const std::array<uint8_t,4>& selector,
-                          const std::tuple<Vs...>& args, Error* e=nullptr);
+  static bool decode_data(BytesSpan in, data_tuple_type& out, Error* e = nullptr){
+    return decode_from<data_tuple_type>(in, out, e);
+  }
+
+  // Utility to check if a topic matches this event
+  static bool matches_topic(BytesSpan topic) {
+    return topic.size() == 32 && std::memcmp(topic.data(), topic_hash.data(), 32) == 0;
+  }
+};
+```
+
+### Event Processing Functions
+
+```cpp
+// Protocol-specific events (auto-generated from ABI)
+namespace abi::protocols {
+    // Topic hash validation
+    bool EventType::matches_topic(BytesSpan topic);
+
+    // Data size calculation
+    size_t EventType::encoded_data_size(args...);
+
+    // Data encoding (non-indexed parameters)
+    bool EventType::encode_data(uint8_t* out, size_t cap, args..., Error* e=nullptr);
+
+    // Clean: Named struct decoding (only interface)
+    bool EventType::decode_data(BytesSpan in, EventDataStruct& out, Error* e=nullptr);
+}
+```
+
+### Event Data Structs (Auto-generated)
+
+```cpp
+// Clean  NEW: Named event data structs (auto-generated from ABI)
+namespace abi::protocols {
+    // ERC20 Transfer event data
+    struct ERC20_TransferEventData {
+        abi::cpp_t<uint_t<256>> value;
+        // ... to_tuple(), from_tuple() methods
+    };
+
+    // UniswapV3 Swap event data
+    struct UniswapV3Pool_SwapEventData {
+        abi::cpp_t<int_t<256>> amount0;
+        abi::cpp_t<int_t<256>> amount1;
+        abi::cpp_t<uint_t<160>> sqrtPriceX96;
+        abi::cpp_t<uint_t<128>> liquidity;
+        abi::cpp_t<int_t<24>> tick;
+        // ... to_tuple(), from_tuple() methods
+    };
 }
 ```
 
@@ -224,7 +314,7 @@ struct IUniswapV3Pool_Slot0 {
 
 ### When to Use Named Structs 🏗️
 ```cpp
-// ✅ BEST for ABI data with meaningful field names
+// *  BEST for ABI data with meaningful field names
 IUniswapV3Pool_Slot0 slot0;
 slot0.sqrtPriceX96 = boost::multiprecision::cpp_int("429512873912345678901234567890");
 slot0.tick = 12345;
@@ -237,7 +327,7 @@ std::cout << "Tick: " << slot0.tick << "\n";
 
 ### When to Use Generic Tuples 🔧
 ```cpp
-// ✅ BEST for unnamed types or internal processing
+// *  BEST for unnamed types or internal processing
 using SimpleReturn = abi::tuple<abi::uint_t<256>, abi::bool_t>;
 auto result = std::make_tuple(boost::multiprecision::cpp_int("1000"), true);
 
@@ -258,7 +348,7 @@ struct TransferResult {
 };
 
 TransferResult clean = TransferResult::from_tuple(generic_tuple);
-std::cout << "Amount: " << clean.amount << "\n";  // ✅ Clean access!
+std::cout << "Amount: " << clean.amount << "\n";  // *  Clean access!
 ```
 
 ## Testing
@@ -268,10 +358,12 @@ npm test     # Run all tests
 npm run test # Alternative test command
 ```
 
-**Test Coverage (69 tests):**
+**Test Coverage (77 tests):**
 - **Generic functions** - `encoded_size`, `encode_into` validation
 - **Named structs** - ABI-generated types round-trip testing
 - **Function calls** - Protocol-specific encoding/decoding
+- **Event processing** - Topic hash validation and event data round-trip
+- **Event compatibility** - Full ethers.js ↔ C++ interoperability
 - **Edge cases** - Boundary conditions, error handling
 - **Complex structures** - Nested arrays, tuples, dynamic types
 - **Cross-validation** - Compare against ethers.js outputs
@@ -315,6 +407,55 @@ std::cout << "tick: " << slot0.tick << "\n";
 std::cout << "unlocked: " << slot0.unlocked << "\n";
 ```
 
+### Event Support (All Protocols)
+
+Auto-generated event wrappers with ethers.js-compatible topic hashes:
+
+#### ERC20 Events
+```cpp
+using TransferEvent = abi::protocols::ERC20_TransferEvent;
+using TransferEventData = abi::protocols::ERC20_TransferEventData; // Clean  NEW!
+using ApprovalEvent = abi::protocols::ERC20_ApprovalEvent;
+using ApprovalEventData = abi::protocols::ERC20_ApprovalEventData; // Clean  NEW!
+
+// Topic hash validation
+if (TransferEvent::matches_topic(log.topics[0])) {
+    // Clean  NEW: Decode using named struct
+    TransferEventData transferData;
+    TransferEvent::decode_data(log.data, transferData);
+    std::cout << "Transfer value: " << transferData.value << " wei\n";
+
+    // Legacy: Decode using tuple (still works)
+    // TransferEvent::data_tuple_type eventData;
+    // TransferEvent::decode_data(log.data, eventData);
+    // auto value = std::get<0>(eventData);
+}
+```
+
+#### UniswapV3 Events
+```cpp
+using SwapEvent = abi::protocols::UniswapV3Pool_SwapEvent;
+using SwapEventData = abi::protocols::UniswapV3Pool_SwapEventData; // Clean  NEW!
+using MintEvent = abi::protocols::UniswapV3Pool_MintEvent;
+using MintEventData = abi::protocols::UniswapV3Pool_MintEventData; // Clean  NEW!
+using BurnEvent = abi::protocols::UniswapV3Pool_BurnEvent;
+using BurnEventData = abi::protocols::UniswapV3Pool_BurnEventData; // Clean  NEW!
+
+// Complex event processing with named fields
+if (SwapEvent::matches_topic(log.topics[0])) {
+    // Clean  SIMPLIFIED: Decode using named struct (primary interface!)
+    SwapEventData swapData;
+    SwapEvent::decode_data(log.data, swapData);
+    std::cout << "Swap amounts: " << swapData.amount0 << " → " << swapData.amount1 << "\n";
+    std::cout << "Price: " << swapData.sqrtPriceX96 << ", Tick: " << swapData.tick << "\n";
+
+    // Legacy: Tuple-based access still available
+    // SwapEvent::data_tuple_type swapTuple;
+    // SwapEvent::decode_data(log.data, swapTuple);
+    // auto [amount0, amount1, sqrtPriceX96, liquidity, tick] = swapTuple;
+}
+```
+
 ## Examples
 
 Run the comprehensive example:
@@ -323,12 +464,16 @@ cd build && make user_usage_clean && ./examples/user_usage_clean
 ```
 
 This demonstrates:
-- ✅ Named struct usage (recommended for ABI data)
-- ✅ Generic function usage (for custom data)
-- ✅ Function call encoding/decoding
-- ✅ Round-trip verification
-- ✅ Named vs Generic comparison
-- ✅ Best practices for unnamed types
+- *  Named struct usage (recommended for ABI data)
+- *  Generic function usage (for custom data)
+- *  Function call encoding/decoding
+- *  Event processing with topic validation
+- *  **Clean  Named field access for events** (no more `std::get<0>(tuple)!`)
+- *  Event data encoding/decoding round-trip
+- *  ethers.js compatibility validation
+- *  Round-trip verification
+- *  Named vs Generic comparison
+- *  Best practices for unnamed types
 
 ## Project Structure
 
@@ -343,22 +488,24 @@ abi_codec/
 │   └── uniswap_v3_pool.json # Uniswap V3 Pool interface
 ├── examples/                 # Usage examples
 │   └── user_usage_clean.cpp # Comprehensive demonstration
-├── tests/                    # Test suite (69 tests)
+├── tests/                    # Test suite (77 tests)
 │   └── abi_tests.cpp        # All functionality tests
 ├── scripts/                  # Generation & testing scripts
 │   ├── generate_from_abi_json.mjs # Generate protocols.h
-│   └── encode.mjs           # ethers.js validation
+│   ├── encode.mjs           # ethers.js function validation
+│   └── encode_event.mjs     # ethers.js event validation
 └── CMakeLists.txt           # Build configuration
 ```
 
 ## Performance & Design
 
+- **Complete Event Support** - Full Ethereum event processing with topic validation
 - **Zero runtime overhead** - All encoding/decoding is compile-time template-based
 - **Header-only** - No linking required, just include and compile
 - **Memory efficient** - Direct encoding to user-provided buffers
 - **Type-safe** - Compile-time validation of all operations
-- **ABI compliant** - Full Ethereum ABI specification support
-- **Validated** - Cross-tested against ethers.js outputs
+- **ABI compliant** - Full Ethereum ABI specification support including events
+- **Validated** - Cross-tested against ethers.js for functions and events
 
 ## Integration
 
@@ -374,6 +521,21 @@ abi::encode_into<abi::uint_t<256>>(buffer, size, value);
 // Or use named structs
 IUniswapV3Pool_Slot0 slot0;
 abi::decode_from<IUniswapV3Pool_Slot0>(data, slot0);
+
+// Clean  SIMPLIFIED: Event processing with named fields
+using TransferEvent = abi::protocols::ERC20_TransferEvent;
+using TransferEventData = abi::protocols::ERC20_TransferEventData;
+
+if (TransferEvent::matches_topic(log.topics[0])) {
+    // Clean  PRIMARY: Decode into named struct (recommended!)
+    TransferEventData transferData;
+    TransferEvent::decode_data(log.data, transferData);
+    std::cout << "Value: " << transferData.value << std::endl;
+
+    // LEGACY: Tuple-based access still available
+    // TransferEvent::data_tuple_type eventData;
+    // TransferEvent::decode_data(log.data, eventData);
+}
 ```
 
 ### CMake integration:
