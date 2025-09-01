@@ -43,10 +43,31 @@ if(WITH_LIBETHC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BACKUP}")
 endif()
 
-# Find Boost (needed for some components)
-find_package(Boost REQUIRED)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
+# Build Boost as external dependency using FetchContent
+option(WITH_BOOST "Build with Boost integration" ON)
+if(WITH_BOOST)
+    # Download and build Boost from archives
+    FetchContent_Declare(
+        boost
+        URL https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.gz
+        URL_HASH SHA256=0cf9684b2d11e7b94b3e9593eb7c30b6b9c9a0e5a77dc5b85365cf6a3a5ce1e9d
+    )
+
+    # Configure Boost build options
+    set(BOOST_ENABLE_CMAKE ON CACHE BOOL "Enable CMake support for Boost" FORCE)
+    set(BOOST_RUNTIME_LINK static CACHE STRING "Link Boost libraries statically" FORCE)
+
+    # Make Boost available
+    FetchContent_MakeAvailable(boost)
+
+    # Add Boost include directories for header-only usage
+    if(TARGET Boost::boost)
+        get_target_property(BOOST_INCLUDE_DIRS Boost::boost INTERFACE_INCLUDE_DIRECTORIES)
+        include_directories(${BOOST_INCLUDE_DIRS})
+    elseif(TARGET Boost::headers)
+        get_target_property(BOOST_INCLUDE_DIRS Boost::headers INTERFACE_INCLUDE_DIRECTORIES)
+        include_directories(${BOOST_INCLUDE_DIRS})
+    endif()
 endif()
 
 # Find dependencies for libethc
