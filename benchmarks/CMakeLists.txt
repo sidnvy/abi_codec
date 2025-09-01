@@ -81,6 +81,26 @@ target_include_directories(balanceof_perf_comparison PRIVATE
 # Link to benchmark dependencies (includes libethc if available) and main abi_codec_deps for Boost
 target_link_libraries(balanceof_perf_comparison abi_codec_benchmark_deps abi_codec_deps)
 
+# Build multicall performance comparison benchmark
+add_executable(multicall_perf_comparison multicall_perf_comparison.cpp)
+
+target_include_directories(multicall_perf_comparison PRIVATE
+    ../include
+)
+
+# Link to benchmark dependencies (includes libethc if available) and main abi_codec_deps for Boost
+target_link_libraries(multicall_perf_comparison abi_codec_benchmark_deps abi_codec_deps)
+
+# Build ticklens performance comparison benchmark
+add_executable(ticklens_perf_comparison ticklens_perf_comparison.cpp)
+
+target_include_directories(ticklens_perf_comparison PRIVATE
+    ../include
+)
+
+# Link to benchmark dependencies (includes libethc if available) and main abi_codec_deps for Boost
+target_link_libraries(ticklens_perf_comparison abi_codec_benchmark_deps abi_codec_deps)
+
 # Check if libethc is available through the interface library
 get_target_property(BENCHMARK_LINK_LIBRARIES abi_codec_benchmark_deps INTERFACE_LINK_LIBRARIES)
 if(BENCHMARK_LINK_LIBRARIES AND "ethc" IN_LIST BENCHMARK_LINK_LIBRARIES)
@@ -100,6 +120,38 @@ if(BENCHMARK_LINK_LIBRARIES AND "ethc" IN_LIST BENCHMARK_LINK_LIBRARIES)
         BUILD_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"
     )
 
+    # Apply same settings to multicall_perf_comparison
+    target_compile_options(multicall_perf_comparison PRIVATE
+        -Wno-stringop-truncation
+        -Wno-maybe-uninitialized
+        -Wno-write-strings
+    )
+
+    target_compile_definitions(multicall_perf_comparison PRIVATE
+        LIBETHC_AVAILABLE=1
+    )
+
+    set_target_properties(multicall_perf_comparison PROPERTIES
+        INSTALL_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"
+        BUILD_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"
+    )
+
+    # Apply same settings to ticklens_perf_comparison
+    target_compile_options(ticklens_perf_comparison PRIVATE
+        -Wno-stringop-truncation
+        -Wno-maybe-uninitialized
+        -Wno-write-strings
+    )
+
+    target_compile_definitions(ticklens_perf_comparison PRIVATE
+        LIBETHC_AVAILABLE=1
+    )
+
+    set_target_properties(ticklens_perf_comparison PROPERTIES
+        INSTALL_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"
+        BUILD_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"
+    )
+
     # Build simple C test
     add_executable(simple_c_test simple_c_test.c)
 
@@ -114,6 +166,12 @@ if(BENCHMARK_LINK_LIBRARIES AND "ethc" IN_LIST BENCHMARK_LINK_LIBRARIES)
     message(STATUS "Building with full libethc support")
 else()
     target_compile_definitions(balanceof_perf_comparison PRIVATE
+        LIBETHC_AVAILABLE=0
+    )
+    target_compile_definitions(multicall_perf_comparison PRIVATE
+        LIBETHC_AVAILABLE=0
+    )
+    target_compile_definitions(ticklens_perf_comparison PRIVATE
         LIBETHC_AVAILABLE=0
     )
     message(STATUS "Building without libethc support")
