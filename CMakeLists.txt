@@ -14,22 +14,23 @@ if(WITH_BOOST)
     if(Boost_FOUND)
         message(STATUS "Found system Boost: ${Boost_VERSION}")
         set(BOOST_INCLUDE_DIR "${Boost_INCLUDE_DIRS}")
-        add_library(boost INTERFACE)
+        add_library(boost_headers INTERFACE)
     else()
         message(STATUS "System Boost not found, downloading Boost 1.87.0 headers...")
         include(ExternalProject)
         ExternalProject_Add(
-            boost
+            boost_download
             URL https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.gz
             SOURCE_DIR "${CMAKE_BINARY_DIR}/boost"
             CONFIGURE_COMMAND ""
             BUILD_COMMAND ""
             INSTALL_COMMAND ""
             TEST_COMMAND ""
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         )
         set(BOOST_INCLUDE_DIR "${CMAKE_BINARY_DIR}/boost")
-        add_library(boost INTERFACE)
-        add_dependencies(boost boost)
+        add_library(boost_headers INTERFACE)
+        add_dependencies(boost_headers boost_download)
     endif()
 endif()
 
@@ -47,7 +48,7 @@ if(WITH_BOOST)
     else()
         # Use downloaded Boost headers
         target_include_directories(abi_codec_deps INTERFACE ${BOOST_INCLUDE_DIR})
-        target_link_libraries(abi_codec_deps INTERFACE boost)
+        target_link_libraries(abi_codec_deps INTERFACE boost_headers)
     endif()
 endif()
 
