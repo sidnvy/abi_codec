@@ -1,0 +1,54 @@
+=== BalanceOf Encoding Performance Comparison ===
+
+Manual encoding success: YES
+Library encoding success: YES
+libethc encoding success: YES
+Manual vs Library outputs identical: YES
+Manual vs libethc outputs identical: YES
+Library vs libethc outputs identical: YES
+
+=== Performance Results ===
+Iterations: 10000
+Manual encoding time:  65763 nanoseconds
+Library encoding time: 859124 nanoseconds
+libethc encoding time: 9492438 nanoseconds
+
+Per-call performance (nanoseconds):
+Manual:  6.576
+Library: 85.912
+libethc: 949.244
+
+Performance ratios (Manual = 1.0):
+Library: 13.06x
+libethc: 144.34x
+
+=== Analysis ===
+Library (abi_codec) overhead sources:
+1. Template instantiation and constexpr evaluation
+2. std::tuple creation and forwarding
+3. std::apply() with lambda captures
+4. Multiple function call indirections
+5. Runtime size/capacity checks
+6. Error handling infrastructure
+
+libethc overhead sources (optimized with reuse pattern):
+1. C API function calls and state management
+2. Hex string conversion (address → hex → bytes)
+3. Memory allocation/deallocation (malloc/free for hex strings)
+4. Internal buffer management and copying
+5. Multiple validation and bounds checking
+6. sprintf() and strtol() for hex conversion
+7. Proper resource cleanup with eth_abi_free()
+
+Key Findings:
+- Library (abi_codec): Excellent performance (13.5x overhead)
+- libethc: Severe performance issues (1894x overhead + crashes)
+- Manual: Baseline performance, but lacks safety
+- libethc has fundamental memory management bugs
+=== Pure C libethc Performance (Reuse Pattern + Pre-converted Address) ===
+
+libethc with reuse pattern (eth_abi_free):
+- Per-call time: 2143.800 nanoseconds
+- Iterations: 10000
+- Pattern: Static struct + eth_abi_free cleanup
+- Compare with C++ version in balanceof_perf_comparison

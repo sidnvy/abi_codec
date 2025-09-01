@@ -10,6 +10,6 @@
     "generate-headers": "node scripts/generate_from_abi_json.mjs"
   },
   "dependencies": {
-    "ethers": "^6.13.0"
+    "ethers": "^6.15.0"
   }
 }

@@ -1,0 +1,99 @@
+name: Performance Benchmark
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.28.x'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libtommath-dev libsecp256k1-dev cmake git
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build project
+      run: |
+        cd build
+        make -j$(nproc)
+
+    - name: Run benchmarks
+      run: |
+        cd build
+
+        echo "## ABI Codec Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Method | Time per Call | Overhead vs Manual |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|---------------|-------------------|" >> $GITHUB_STEP_SUMMARY
+
+        # Run the main performance comparison
+        ./benchmarks/balanceof_perf_comparison
+
+        # Extract results and format them
+        echo "| Manual | $(grep "Manual:" benchmark/benchmark_output.txt | sed 's/.*Manual:  \([0-9.]*\).*/\1 ns/') | 1.0x (baseline) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Library | $(grep "Library:" benchmark/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\).*/\1 ns/') | $(grep "Library:" benchmark/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+        echo "| libethc | $(grep "libethc:" benchmark/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\).*/\1 ns/') | $(grep "libethc:" benchmark/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Benchmark Details" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat benchmark/benchmark_output.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results-${{ github.run_id }}
+        path: |
+          benchmark/benchmark_output.txt
+        retention-days: 30
+
+    - name: Comment on PR (if applicable)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const output = fs.readFileSync('benchmark/benchmark_output.txt', 'utf8');
+
+          const manualMatch = output.match(/Manual:\s+([0-9.]+)/);
+          const libraryMatch = output.match(/Library:\s+([0-9.]+)/);
+          const libethcMatch = output.match(/libethc:\s+([0-9.]+)/);
+
+          const comment = `## 🚀 Performance Benchmark Results
+
+| Method | Time per Call | Status |
+|--------|---------------|---------|
+| Manual | ${manualMatch ? manualMatch[1] + ' ns' : 'N/A'} | Baseline |
+| Library | ${libraryMatch ? libraryMatch[1] + ' ns' : 'N/A'} | ${libraryMatch ? (parseFloat(libraryMatch[1]) / parseFloat(manualMatch[1])).toFixed(1) + 'x overhead' : 'N/A'} |
+| libethc | ${libethcMatch ? libethcMatch[1] + ' ns' : 'N/A'} | ${libethcMatch ? (parseFloat(libethcMatch[1]) / parseFloat(manualMatch[1])).toFixed(0) + 'x overhead' : 'N/A'} |
+
+### Analysis
+${parseFloat(libraryMatch[1]) < parseFloat(libethcMatch[1]) * 0.1 ? '✅ Excellent performance!' : '⚠️ Performance needs improvement'}
+
+_Results from commit: ${context.sha.substring(0, 7)}_`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
