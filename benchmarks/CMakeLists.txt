@@ -78,8 +78,8 @@ target_include_directories(balanceof_perf_comparison PRIVATE
     ../include
 )
 
-# Link to benchmark dependencies (includes libethc if available)
-target_link_libraries(balanceof_perf_comparison abi_codec_benchmark_deps)
+# Link to benchmark dependencies (includes libethc if available) and main abi_codec_deps for Boost
+target_link_libraries(balanceof_perf_comparison abi_codec_benchmark_deps abi_codec_deps)
 
 # Check if libethc is available through the interface library
 get_target_property(BENCHMARK_LINK_LIBRARIES abi_codec_benchmark_deps INTERFACE_LINK_LIBRARIES)
@@ -104,7 +104,7 @@ if(BENCHMARK_LINK_LIBRARIES AND "ethc" IN_LIST BENCHMARK_LINK_LIBRARIES)
     add_executable(simple_c_test simple_c_test.c)
 
     target_include_directories(simple_c_test PRIVATE ../include)
-    target_link_libraries(simple_c_test abi_codec_benchmark_deps)
+    target_link_libraries(simple_c_test abi_codec_benchmark_deps abi_codec_deps)
 
     set_target_properties(simple_c_test PROPERTIES
         INSTALL_RPATH "${CMAKE_BINARY_DIR}/_deps/libethc-build"

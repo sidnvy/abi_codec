@@ -31,10 +31,10 @@ jobs:
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
 
-    - name: Build project
+    - name: Build benchmarks only
       run: |
         cd build
-        make -j$(nproc)
+        make balanceof_perf_comparison simple_c_test -j$(nproc)
 
     - name: Run benchmarks
       run: |

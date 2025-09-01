@@ -60,7 +60,7 @@ cd build
 
 # Configure with Release build for optimal performance
 cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+make balanceof_perf_comparison simple_c_test -j$(nproc)
 
 print_status "Build completed"
 

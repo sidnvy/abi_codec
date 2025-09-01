@@ -41,14 +41,22 @@ add_library(abi_codec_deps INTERFACE)
 if(WITH_BOOST)
     if(Boost_FOUND)
         # Use system Boost
+        message(STATUS "Using system Boost includes: ${Boost_INCLUDE_DIRS}")
         target_include_directories(abi_codec_deps INTERFACE ${Boost_INCLUDE_DIRS})
         if(Boost_LIBRARIES)
             target_link_libraries(abi_codec_deps INTERFACE ${Boost_LIBRARIES})
         endif()
     else()
         # Use downloaded Boost headers
-        target_include_directories(abi_codec_deps INTERFACE ${BOOST_INCLUDE_DIR})
-        target_link_libraries(abi_codec_deps INTERFACE boost_headers)
+        message(STATUS "Using downloaded Boost includes: ${BOOST_INCLUDE_DIR}")
+        # Ensure the boost_headers target is created before adding include directories
+        if(TARGET boost_headers)
+            target_include_directories(abi_codec_deps INTERFACE ${BOOST_INCLUDE_DIR})
+            target_link_libraries(abi_codec_deps INTERFACE boost_headers)
+        else()
+            # Fallback: add include directory directly
+            target_include_directories(abi_codec_deps INTERFACE ${BOOST_INCLUDE_DIR})
+        endif()
     endif()
 endif()
 
