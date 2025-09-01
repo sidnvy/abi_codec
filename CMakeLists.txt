@@ -59,14 +59,17 @@ if(WITH_BOOST)
 
     # Make Boost available
     FetchContent_MakeAvailable(boost)
+endif()
 
-    # Add Boost include directories for header-only usage
+# Create interface library for project dependencies
+add_library(abi_codec_deps INTERFACE)
+
+# Add Boost to the interface library if available
+if(WITH_BOOST)
     if(TARGET Boost::boost)
-        get_target_property(BOOST_INCLUDE_DIRS Boost::boost INTERFACE_INCLUDE_DIRECTORIES)
-        include_directories(${BOOST_INCLUDE_DIRS})
+        target_link_libraries(abi_codec_deps INTERFACE Boost::boost)
     elseif(TARGET Boost::headers)
-        get_target_property(BOOST_INCLUDE_DIRS Boost::headers INTERFACE_INCLUDE_DIRECTORIES)
-        include_directories(${BOOST_INCLUDE_DIRS})
+        target_link_libraries(abi_codec_deps INTERFACE Boost::headers)
     endif()
 endif()
 

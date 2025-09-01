@@ -11,6 +11,7 @@ add_custom_target(npm_deps ALL
 # New trait-based tests (recommended)
 add_executable(${NAME} abi_tests.cpp)
 target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(${NAME} abi_codec_deps)
 add_dependencies(${NAME} npm_deps)
 add_test(NAME ${NAME} COMMAND ${NAME} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set_tests_properties(${NAME} PROPERTIES

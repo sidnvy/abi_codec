@@ -13,8 +13,5 @@ add_executable(${NAME} user_usage_clean.cpp)
 target_include_directories(${NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 add_dependencies(${NAME} npm_deps_examples)
 
-# Link against boost if needed
-find_package(Boost REQUIRED)
-if(Boost_FOUND)
-  target_link_libraries(${NAME} Boost::boost)
-endif()
+# Link against project dependencies (includes Boost if available)
+target_link_libraries(${NAME} abi_codec_deps)
