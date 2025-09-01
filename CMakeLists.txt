@@ -50,7 +50,6 @@ if(WITH_BOOST)
     FetchContent_Declare(
         boost
         URL https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.gz
-        URL_HASH SHA256=0cf9684b2d11e7b94b3e9593eb7c30b6b9c9a0e5a77dc5b85365cf6a3a5ce1e9d
     )
 
     # Configure Boost build options
