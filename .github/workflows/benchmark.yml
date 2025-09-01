@@ -48,14 +48,14 @@ jobs:
         ./benchmarks/balanceof_perf_comparison
 
         # Extract results and format them
-        echo "| Manual | $(grep "Manual:" benchmarks/benchmark_output.txt | sed 's/.*Manual:  \([0-9.]*\).*/\1 ns/') | 1.0x (baseline) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Library | $(grep "Library:" benchmarks/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\).*/\1 ns/') | $(grep "Library:" benchmarks/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
-        echo "| libethc | $(grep "libethc:" benchmarks/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\).*/\1 ns/') | $(grep "libethc:" benchmarks/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+        echo "| Manual | $(grep "Manual:" benchmark_output.txt | sed 's/.*Manual:  \([0-9.]*\).*/\1 ns/') | 1.0x (baseline) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Library | $(grep "Library:" benchmark_output.txt | sed 's/.*Library: \([0-9.]*\).*/\1 ns/') | $(grep "Library:" benchmark_output.txt | sed 's/.*Library: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+        echo "| libethc | $(grep "libethc:" benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\).*/\1 ns/') | $(grep "libethc:" benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
 
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Benchmark Details" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        cat benchmarks/benchmark_output.txt >> $GITHUB_STEP_SUMMARY
+        cat benchmark_output.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload benchmark results
@@ -63,7 +63,7 @@ jobs:
       with:
         name: benchmark-results-${{ github.run_id }}
         path: |
-          benchmarks/benchmark_output.txt
+          benchmark_output.txt
         retention-days: 30
 
     - name: Comment on PR (if applicable)
@@ -72,7 +72,7 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const output = fs.readFileSync('benchmarks/benchmark_output.txt', 'utf8');
+          const output = fs.readFileSync('benchmark_output.txt', 'utf8');
 
           const manualMatch = output.match(/Manual:\s+([0-9.]+)/);
           const libraryMatch = output.match(/Library:\s+([0-9.]+)/);

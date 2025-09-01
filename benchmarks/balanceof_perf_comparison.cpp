@@ -7,6 +7,7 @@
 #include <string>
 #include <cstdlib>  // for malloc, free
 #include <cstdio>   // for strcpy, strlen (though strlen is in cstring)
+#include <fstream>  // for file output
 #include "../include/abi/protocols.h"
 
 // libethc C API - minimal declarations to avoid GMP conflicts
@@ -65,6 +66,11 @@ bool library_encode_balanceof(uint8_t* out, size_t cap, const std::array<uint8_t
     return abi::protocols::ERC20_BalanceOf::template encode_call<std::array<uint8_t, 20>>(out, cap, address, &err);
 }
 
+// HFT-optimized library encoding wrapper (zero-allocation)
+uint8_t* hft_library_encode_balanceof(const std::array<uint8_t, 20>& address) {
+    return abi::protocols::ERC20_BalanceOf::encode_call_hft(address);
+}
+
 // libethc-based encoding wrapper with reuse pattern and pre-converted address
 bool libethc_encode_balanceof(uint8_t* out, size_t cap, const char* addr_hex) {
     static struct eth_abi abi;  // Reuse static instance for efficiency
@@ -109,6 +115,13 @@ cleanup:
 
 
 int main() {
+    // Open output file for GitHub Actions parsing
+    std::ofstream output_file("benchmark_output.txt");
+    if (!output_file.is_open()) {
+        std::cerr << "Error: Could not open benchmark_output.txt for writing\n";
+        return 1;
+    }
+
     // Test address
     std::array<uint8_t, 20> test_address = {
         0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
@@ -119,6 +132,7 @@ int main() {
     std::vector<uint8_t> manual_buffer(36);
     std::vector<uint8_t> library_buffer(36);
     std::vector<uint8_t> libethc_buffer(36);
+    std::vector<uint8_t> hft_buffer(36); // For HFT result validation
 
     // Pre-convert address for validation (same as performance test)
     char validation_addr_hex[43];
@@ -130,27 +144,39 @@ int main() {
     bool manual_success = manual_encode_balanceof(manual_buffer.data(), manual_buffer.size(), test_address);
     bool library_success = library_encode_balanceof(library_buffer.data(), library_buffer.size(), test_address);
     bool libethc_success = libethc_encode_balanceof(libethc_buffer.data(), libethc_buffer.size(), validation_addr_hex);
+    uint8_t* hft_result = hft_library_encode_balanceof(test_address);
+    bool hft_success = (hft_result != nullptr);
+
+    // Copy HFT result to validation buffer
+    if (hft_success) {
+        std::memcpy(hft_buffer.data(), hft_result, 36);
+    }
 
     std::cout << "=== BalanceOf Encoding Performance Comparison ===\n\n";
 
     std::cout << "Manual encoding success: " << (manual_success ? "YES" : "NO") << "\n";
     std::cout << "Library encoding success: " << (library_success ? "YES" : "NO") << "\n";
+    std::cout << "HFT Library encoding success: " << (hft_success ? "YES" : "NO") << "\n";
     std::cout << "libethc encoding success: " << (libethc_success ? "YES" : "NO") << "\n";
 
-    if (manual_success && library_success && libethc_success) {
+    if (manual_success && library_success && hft_success && libethc_success) {
         bool manual_lib_identical = (manual_buffer == library_buffer);
+        bool manual_hft_identical = (manual_buffer == hft_buffer);
         bool manual_libethc_identical = (manual_buffer == libethc_buffer);
         bool lib_libethc_identical = (library_buffer == libethc_buffer);
 
         std::cout << "Manual vs Library outputs identical: " << (manual_lib_identical ? "YES" : "NO") << "\n";
+        std::cout << "Manual vs HFT Library outputs identical: " << (manual_hft_identical ? "YES" : "NO") << "\n";
         std::cout << "Manual vs libethc outputs identical: " << (manual_libethc_identical ? "YES" : "NO") << "\n";
         std::cout << "Library vs libethc outputs identical: " << (lib_libethc_identical ? "YES" : "NO") << "\n";
 
-        if (!manual_lib_identical || !manual_libethc_identical || !lib_libethc_identical) {
+        if (!manual_lib_identical || !manual_hft_identical || !manual_libethc_identical || !lib_libethc_identical) {
             std::cout << "\nManual output:   ";
             for (uint8_t b : manual_buffer) printf("%02x", b);
             std::cout << "\nLibrary output:  ";
             for (uint8_t b : library_buffer) printf("%02x", b);
+            std::cout << "\nHFT Library output: ";
+            for (uint8_t b : hft_buffer) printf("%02x", b);
             std::cout << "\nlibethc output:  ";
             for (uint8_t b : libethc_buffer) printf("%02x", b);
             std::cout << "\n";
@@ -181,6 +207,16 @@ int main() {
         end = std::chrono::high_resolution_clock::now();
         auto library_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 
+        // HFT Library encoding benchmark
+        start = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < iterations; ++i) {
+            uint8_t* hft_result = hft_library_encode_balanceof(test_address);
+            // Copy result to avoid measuring buffer access time
+            if (hft_result) std::memcpy(hft_buffer.data(), hft_result, 36);
+        }
+        end = std::chrono::high_resolution_clock::now();
+        auto hft_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+
         // libethc encoding benchmark (reuse pattern with eth_abi_free and pre-converted address)
         start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; ++i) {
@@ -193,47 +229,75 @@ int main() {
         std::cout << "Iterations: " << iterations << "\n";
         std::cout << "Manual encoding time:  " << manual_duration.count() << " nanoseconds\n";
         std::cout << "Library encoding time: " << library_duration.count() << " nanoseconds\n";
+        std::cout << "HFT Library encoding time: " << hft_duration.count() << " nanoseconds\n";
         std::cout << "libethc encoding time: " << libethc_duration.count() << " nanoseconds\n";
 
         // Calculate relative performance
         double manual_per_call = (double)manual_duration.count() / iterations;
         double library_per_call = (double)library_duration.count() / iterations;
+        double hft_per_call = (double)hft_duration.count() / iterations;
         double libethc_per_call = (double)libethc_duration.count() / iterations;
 
-        std::cout << "\nPer-call performance (nanoseconds):\n";
-        std::cout << "Manual:  " << std::fixed << std::setprecision(3) << manual_per_call << "\n";
-        std::cout << "Library: " << std::fixed << std::setprecision(3) << library_per_call << "\n";
-        std::cout << "libethc: " << std::fixed << std::setprecision(3) << libethc_per_call << "\n";
+        // Write results to both console and file (GitHub Actions format)
+        auto write_output = [&](const std::string& line) {
+            std::cout << line;
+            output_file << line;
+        };
 
-        std::cout << "\nPerformance ratios (Manual = 1.0):\n";
-        std::cout << "Library: " << std::fixed << std::setprecision(2) << library_per_call / manual_per_call << "x\n";
-        std::cout << "libethc: " << std::fixed << std::setprecision(2) << libethc_per_call / manual_per_call << "x\n";
+        write_output("\nPer-call performance (nanoseconds):\n");
+        write_output("Manual:  " + std::to_string(manual_per_call) + " ns\n");
+        write_output("Library: " + std::to_string(library_per_call) + " ns (" +
+                    std::to_string(library_per_call / manual_per_call) + "x overhead)\n");
+        write_output("libethc: " + std::to_string(libethc_per_call) + " ns (" +
+                    std::to_string(libethc_per_call / manual_per_call) + "x overhead)\n");
 
-        std::cout << "\n=== Analysis ===\n";
+        write_output("\nPerformance ratios (Manual = 1.0):\n");
+        write_output("Library: " + std::to_string(library_per_call / manual_per_call) + "x\n");
+        write_output("HFT Library: " + std::to_string(hft_per_call / manual_per_call) + "x\n");
+        write_output("libethc: " + std::to_string(libethc_per_call / manual_per_call) + "x\n");
 
-        std::cout << "Library (abi_codec) overhead sources:\n";
-        std::cout << "1. Template instantiation and constexpr evaluation\n";
-        std::cout << "2. std::tuple creation and forwarding\n";
-        std::cout << "3. std::apply() with lambda captures\n";
-        std::cout << "4. Multiple function call indirections\n";
-        std::cout << "5. Runtime size/capacity checks\n";
-        std::cout << "6. Error handling infrastructure\n";
+        write_output("\nHFT Improvement over regular Library:\n");
+        write_output("Speedup: " + std::to_string(library_per_call / hft_per_call) + "x faster\n");
+        write_output("Latency reduction: " + std::to_string((1.0 - hft_per_call / library_per_call) * 100) + "%\n");
 
-        std::cout << "\nlibethc overhead sources (optimized with reuse pattern):\n";
-        std::cout << "1. C API function calls and state management\n";
-        std::cout << "2. Hex string conversion (address → hex → bytes)\n";
-        std::cout << "3. Memory allocation/deallocation (malloc/free for hex strings)\n";
-        std::cout << "4. Internal buffer management and copying\n";
-        std::cout << "5. Multiple validation and bounds checking\n";
-        std::cout << "6. sprintf() and strtol() for hex conversion\n";
-        std::cout << "7. Proper resource cleanup with eth_abi_free()\n";
+        write_output("\n=== Analysis ===\n");
 
-        std::cout << "\nKey Findings:\n";
-        std::cout << "- Library (abi_codec): Excellent performance (13.5x overhead)\n";
-        std::cout << "- libethc: Severe performance issues (1894x overhead + crashes)\n";
-        std::cout << "- Manual: Baseline performance, but lacks safety\n";
-        std::cout << "- libethc has fundamental memory management bugs\n";
+        write_output("Library (abi_codec) overhead sources:\n");
+        write_output("1. Template instantiation and constexpr evaluation\n");
+        write_output("2. std::tuple creation and forwarding\n");
+        write_output("3. std::apply() with lambda captures\n");
+        write_output("4. Multiple function call indirections\n");
+        write_output("5. Runtime size/capacity checks\n");
+        write_output("6. Error handling infrastructure\n");
+
+        write_output("\nHFT Library optimizations:\n");
+        write_output("1. Zero-allocation using thread-local HFTBuffer\n");
+        write_output("2. SIMD-accelerated memcpy for aligned data\n");
+        write_output("3. Pre-computed sizes and compile-time optimizations\n");
+        write_output("4. Direct buffer access without validation overhead\n");
+        write_output("5. Cache-aligned memory layout (64-byte alignment)\n");
+        write_output("6. Reduced function call indirections\n");
+
+        write_output("\nlibethc overhead sources (optimized with reuse pattern):\n");
+        write_output("1. C API function calls and state management\n");
+        write_output("2. Hex string conversion (address → hex → bytes)\n");
+        write_output("3. Memory allocation/deallocation (malloc/free for hex strings)\n");
+        write_output("4. Internal buffer management and copying\n");
+        write_output("5. Multiple validation and bounds checking\n");
+        write_output("6. sprintf() and strtol() for hex conversion\n");
+        write_output("7. Proper resource cleanup with eth_abi_free()\n");
+
+        write_output("\nKey Findings:\n");
+        write_output("- Manual: Baseline performance, but lacks safety\n");
+        write_output("- Library (abi_codec): Good performance (" + std::to_string(library_per_call / manual_per_call) + "x overhead)\n");
+        write_output("- HFT Library: Excellent performance (" + std::to_string(hft_per_call / manual_per_call) + "x overhead, " + std::to_string(library_per_call / hft_per_call) + "x faster than regular library)\n");
+        write_output("- libethc: Severe performance issues (" + std::to_string(libethc_per_call / manual_per_call) + "x overhead + crashes)\n");
+        write_output("- HFT optimizations eliminate heap allocations and reduce latency by " + std::to_string((1.0 - hft_per_call / library_per_call) * 100) + "%\n");
+        write_output("- libethc has fundamental memory management bugs\n");
     }
+
+    // Close output file
+    output_file.close();
 
     return 0;
 }
