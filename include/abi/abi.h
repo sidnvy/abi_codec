@@ -32,6 +32,26 @@ struct Span {
   const T* end()   const { return data_ + size_; }
 };
 
+// ----------------- HFT Memory Pool (Zero-allocation) -----------------
+template<size_t BufferSize = 4096>
+struct alignas(64) HFTBuffer {
+  uint8_t data[BufferSize];
+  size_t used = 0;
+
+  uint8_t* allocate(size_t size) {
+    if (used + size > BufferSize) return nullptr;
+    uint8_t* ptr = data + used;
+    used += size;
+    return ptr;
+  }
+
+  void reset() { used = 0; }
+  size_t remaining() const { return BufferSize - used; }
+};
+
+// Thread-local buffer pool for HFT
+thread_local HFTBuffer<4096> hft_buffer;
+
 using BytesSpan = Span<const uint8_t>;
 
 // ----------------- error -----------------
@@ -76,15 +96,30 @@ using address_t = cpp_t<address20>;
 // ----------------- helpers -----------------
 inline constexpr size_t pad32(size_t n){ return (n + 31) & ~size_t(31); }
 
+// HFT-optimized memory operations using SIMD where available
+#ifdef __AVX2__
+#include <immintrin.h>
+inline void fast_memcpy_32(uint8_t* __restrict dst, const uint8_t* __restrict src) {
+  __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(src));
+  _mm256_storeu_si256(reinterpret_cast<__m256i*>(dst), v);
+}
+#else
+inline void fast_memcpy_32(uint8_t* dst, const uint8_t* src) {
+  std::memcpy(dst, src, 32);
+}
+#endif
+
 inline void write_u256_imm(uint8_t* out, uint64_t v){
   std::memset(out, 0, 32);
   for(int i=0;i<8;++i){ out[31-i]=uint8_t(v&0xFF); v>>=8; }
 }
+
 inline void write_u256_big(uint8_t* out, const boost::multiprecision::cpp_int& x){
   using boost::multiprecision::cpp_int;
   cpp_int v = x;
   for(int i=31;i>=0;--i){ out[i] = static_cast<uint8_t>((v & 0xFF).convert_to<unsigned>()); v >>= 8; }
 }
+
 inline boost::multiprecision::cpp_int read_u256_big(const uint8_t* in){
   using boost::multiprecision::cpp_int;
   cpp_int x=0; for(int i=0;i<32;++i){ x <<= 8; x += in[i]; } return x;
@@ -101,7 +136,15 @@ inline boost::multiprecision::cpp_int sign_extend(const boost::multiprecision::c
   return v;
 }
 inline void write_bytes_padded(uint8_t* out, BytesSpan b){
-  if (b.size()) std::memcpy(out, b.data(), b.size());
+  if (b.size()) {
+    // Use fast memcpy for 32-byte aligned operations
+    if (b.size() >= 32 && ((uintptr_t)out & 31) == 0 && ((uintptr_t)b.data() & 31) == 0) {
+      fast_memcpy_32(out, b.data());
+      if (b.size() > 32) std::memcpy(out + 32, b.data() + 32, b.size() - 32);
+    } else {
+      std::memcpy(out, b.data(), b.size());
+    }
+  }
   size_t pad = pad32(b.size()) - b.size();
   if (pad) std::memset(out + b.size(), 0, pad);
 }
@@ -620,6 +663,31 @@ inline bool encode_into(uint8_t* out, size_t out_cap, const V& value, Error* e=n
   return true;
 }
 
+// ----------------- HFT Optimized Versions (Zero-allocation, Pre-computed sizes) -----------------
+
+// HFT-optimized encoder with pre-allocated buffer
+template<class Schema, class V>
+inline bool encode_into_hft(HFTBuffer<>& buf, const V& value) {
+  const size_t need = encoded_size<Schema>(value);
+  if(buf.remaining() < need) return false;
+
+  uint8_t* out = buf.allocate(need);
+  const size_t base = 32 * traits<Schema>::head_words;
+  traits<Schema>::encode_head(out, 0, value, base);
+  traits<Schema>::encode_tail(out, base, value);
+  return true;
+}
+
+// Compile-time size calculation for static schemas
+template<class Schema>
+constexpr size_t static_encoded_size() {
+  if constexpr (traits<Schema>::is_dynamic) {
+    return 0; // Cannot be determined at compile time
+  } else {
+    return 32 * traits<Schema>::head_words;
+  }
+}
+
 
 template<class... Schemas, class... Vs>
 inline size_t encoded_size_call(const std::tuple<Vs...>& args){
@@ -642,6 +710,51 @@ inline bool encode_call_into(uint8_t* out, size_t out_cap,
   static_assert(sizeof...(Schemas)==sizeof...(Vs), "arity mismatch");
   const size_t need = encoded_size_call<Schemas...>(args);
   if(out_cap < need){ if(e) e->message="encode_call: buffer too small"; return false; }
+
+  // selector
+  std::memcpy(out, selector.data(), 4);
+  uint8_t* head32 = out + 4;
+
+  // compute total head words
+  constexpr size_t head_words_total =
+      ((traits<Schemas>::is_dynamic ? 1 : traits<Schemas>::head_words) + ... + 0);
+  const size_t base = 32 * head_words_total;
+
+  // heads (write per-arg offset = base + running_so_far)
+  size_t head_cursor = 0;
+  size_t running = 0;
+  std::apply([&](const auto&... vs){
+    (void)std::initializer_list<int>{
+      ( [&](){
+          traits<Schemas>::encode_head(head32 + 32*head_cursor, 0, vs, base + running);
+          head_cursor += (traits<Schemas>::is_dynamic ? 1 : traits<Schemas>::head_words);
+          running += traits<Schemas>::tail_size(vs);
+        }(), 0 )...
+    };
+  }, args);
+
+  // tails
+  running = 0;
+  std::apply([&](const auto&... vs){
+    (void)std::initializer_list<int>{
+      ( (traits<Schemas>::encode_tail(head32, base + running, vs),
+         running += traits<Schemas>::tail_size(vs)), 0 )...
+    };
+  }, args);
+  return true;
+}
+
+// ----------------- HFT Optimized Call Encoding (Zero-allocation) -----------------
+
+template<class... Schemas, class... Vs>
+inline bool encode_call_into_hft(HFTBuffer<>& buf,
+                                 const std::array<uint8_t,4>& selector,
+                                 const std::tuple<Vs...>& args) {
+  static_assert(sizeof...(Schemas)==sizeof...(Vs), "arity mismatch");
+  const size_t need = encoded_size_call<Schemas...>(args);
+  if(buf.remaining() < need) return false;
+
+  uint8_t* out = buf.allocate(need);
 
   // selector
   std::memcpy(out, selector.data(), 4);
@@ -706,6 +819,17 @@ struct Fn {
   static bool encode_call(uint8_t* out, size_t cap, const Vs&... vs, Error* e=nullptr){
     auto tup = std::forward_as_tuple(vs...);
     return encode_call_into<ArgSchemas...>(out, cap, Selector::value, tup, e);
+  }
+
+  // HFT-optimized encoding using thread-local buffer
+  template<class... Vs>
+  static uint8_t* encode_call_hft(const Vs&... vs) {
+    auto tup = std::forward_as_tuple(vs...);
+    hft_buffer.reset();
+    if (!encode_call_into_hft<ArgSchemas...>(hft_buffer, Selector::value, tup)) {
+      return nullptr;
+    }
+    return hft_buffer.data;
   }
 
   // Return value decoding (input: response data, output: decoded result)
