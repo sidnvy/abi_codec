@@ -48,14 +48,14 @@ jobs:
         ./benchmarks/balanceof_perf_comparison
 
         # Extract results and format them
-        echo "| Manual | $(grep "Manual:" benchmark/benchmark_output.txt | sed 's/.*Manual:  \([0-9.]*\).*/\1 ns/') | 1.0x (baseline) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Library | $(grep "Library:" benchmark/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\).*/\1 ns/') | $(grep "Library:" benchmark/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
-        echo "| libethc | $(grep "libethc:" benchmark/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\).*/\1 ns/') | $(grep "libethc:" benchmark/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+        echo "| Manual | $(grep "Manual:" benchmarks/benchmark_output.txt | sed 's/.*Manual:  \([0-9.]*\).*/\1 ns/') | 1.0x (baseline) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Library | $(grep "Library:" benchmarks/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\).*/\1 ns/') | $(grep "Library:" benchmarks/benchmark_output.txt | sed 's/.*Library: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
+        echo "| libethc | $(grep "libethc:" benchmarks/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\).*/\1 ns/') | $(grep "libethc:" benchmarks/benchmark_output.txt | sed 's/.*libethc: \([0-9.]*\)x.*/\1x/') |" >> $GITHUB_STEP_SUMMARY
 
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Benchmark Details" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        cat benchmark/benchmark_output.txt >> $GITHUB_STEP_SUMMARY
+        cat benchmarks/benchmark_output.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload benchmark results
@@ -63,7 +63,7 @@ jobs:
       with:
         name: benchmark-results-${{ github.run_id }}
         path: |
-          benchmark/benchmark_output.txt
+          benchmarks/benchmark_output.txt
         retention-days: 30
 
     - name: Comment on PR (if applicable)
@@ -72,24 +72,21 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const output = fs.readFileSync('benchmark/benchmark_output.txt', 'utf8');
+          const output = fs.readFileSync('benchmarks/benchmark_output.txt', 'utf8');
 
           const manualMatch = output.match(/Manual:\s+([0-9.]+)/);
           const libraryMatch = output.match(/Library:\s+([0-9.]+)/);
           const libethcMatch = output.match(/libethc:\s+([0-9.]+)/);
 
-          const comment = `## 🚀 Performance Benchmark Results
-
-| Method | Time per Call | Status |
-|--------|---------------|---------|
-| Manual | ${manualMatch ? manualMatch[1] + ' ns' : 'N/A'} | Baseline |
-| Library | ${libraryMatch ? libraryMatch[1] + ' ns' : 'N/A'} | ${libraryMatch ? (parseFloat(libraryMatch[1]) / parseFloat(manualMatch[1])).toFixed(1) + 'x overhead' : 'N/A'} |
-| libethc | ${libethcMatch ? libethcMatch[1] + ' ns' : 'N/A'} | ${libethcMatch ? (parseFloat(libethcMatch[1]) / parseFloat(manualMatch[1])).toFixed(0) + 'x overhead' : 'N/A'} |
-
-### Analysis
-${parseFloat(libraryMatch[1]) < parseFloat(libethcMatch[1]) * 0.1 ? '✅ Excellent performance!' : '⚠️ Performance needs improvement'}
-
-_Results from commit: ${context.sha.substring(0, 7)}_`;
+          const comment = "## 🚀 Performance Benchmark Results\n\n" +
+            "| Method | Time per Call | Status |\n" +
+            "|--------|---------------|---------|\n" +
+            "| Manual | " + (manualMatch ? manualMatch[1] + ' ns' : 'N/A') + " | Baseline |\n" +
+            "| Library | " + (libraryMatch ? libraryMatch[1] + ' ns' : 'N/A') + " | " + (libraryMatch ? (parseFloat(libraryMatch[1]) / parseFloat(manualMatch[1])).toFixed(1) + 'x overhead' : 'N/A') + " |\n" +
+            "| libethc | " + (libethcMatch ? libethcMatch[1] + ' ns' : 'N/A') + " | " + (libethcMatch ? (parseFloat(libethcMatch[1]) / parseFloat(manualMatch[1])).toFixed(0) + 'x overhead' : 'N/A') + " |\n\n" +
+            "### Analysis\n" +
+            (parseFloat(libraryMatch[1]) < parseFloat(libethcMatch[1]) * 0.1 ? '✅ Excellent performance!' : '⚠️ Performance needs improvement') + "\n\n" +
+            "_Results from commit: " + context.sha.substring(0, 7) + "_";
 
           github.rest.issues.createComment({
             issue_number: context.issue.number,

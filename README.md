@@ -1,6 +1,6 @@
 # ABI Codec
 
-[![Benchmark](https://img.shields.io/github/actions/workflow/status/your-username/your-repo/benchmark.yml?label=Benchmark)](https://github.com/your-username/your-repo/actions/workflows/benchmark.yml)
+[![Benchmark](https://img.shields.io/github/actions/workflow/status/sidnvy/abi_codec/benchmark.yml?label=Benchmark)](https://github.com/sidnvy/abi_codec/actions/workflows/benchmark.yml)
 
 A high-performance C++ library for Ethereum ABI encoding and decoding, with clean named structs for ABI types and flexible generic functions for custom data.
 
@@ -30,7 +30,7 @@ A high-performance C++ library for Ethereum ABI encoding and decoding, with clea
 ## Quick Start
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/sidnvy/abi_codec.git
 cd abi_codec
 npm install
 npm test
