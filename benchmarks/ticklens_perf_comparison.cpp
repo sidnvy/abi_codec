@@ -446,10 +446,6 @@ int main() {
             std::cout << "- Manual and Libethc approaches faster but more complex to implement\n";
             std::cout << "- All three encoding approaches produce identical results\n";
             std::cout << "- Library decoding works perfectly for complex return data\n";
-
-            std::cout << "\nEncoded data sizes:\n";
-            std::cout << "TickLens call: 68 bytes (selector + address + int16)\n";
-            std::cout << "Ethers.js response: " << ethers_response.size() << " bytes (empty dynamic array)\n";
         } else {
             std::cout << "\n❌ VERIFICATION FAILED - Encoding outputs do not match expected results!" << std::endl;
             return 1;
