@@ -55,7 +55,8 @@ inline std::string run_node_and_capture(const std::string& cmd) {
 
 inline std::string hex_lower(const uint8_t* p, size_t n) {
   static constexpr char k[] = "0123456789abcdef";
-  std::string s; s.reserve(2 * n);
+  std::string s;
+  s.reserve(2 * n);
   for (size_t i = 0; i < n; ++i) {
     s.push_back(k[p[i] >> 4]);
     s.push_back(k[p[i] & 0xF]);
@@ -753,8 +754,8 @@ int main() try {
 
     // 9) Tuple containing arrays
     using TupWithArrays = abi::tuple<
-      abi::dyn_array<abi::uint_t<256>>,            // dynamic
-      abi::static_array<abi::address20, 2>         // static (but overall tuple dynamic)
+      abi::dyn_array<abi::uint_t<256>>,
+      abi::static_array<abi::address20, 2>
     >;
     RUN_TEST("tuple<dyn_array<uint256>, static_array<address,2>>",
       (roundtrip_value<TupWithArrays>(std::make_tuple(
@@ -806,7 +807,8 @@ int main() try {
       (roundtrip_value<Deep>(std::make_tuple(
         std::vector<std::tuple<bool,std::vector<uint8_t>>>{
           {true,  std::vector<uint8_t>{0xCA,0xFE}},
-          {false, std::vector<uint8_t>{}}
+          {false, std::vector<uint8_t>{}},
+          {true,  std::vector<uint8_t>(33,0x77)}
         },
         std::string("ok")
       ))));
@@ -820,7 +822,7 @@ int main() try {
     using abi_test::roundtrip_value;
     using boost::multiprecision::cpp_int;
 
-    // ---------- Scalars: signed/unsigned edges ----------
+    // ----------Scalars: signed/unsigned edges ----------
     RUN_TEST("int8 min",  (roundtrip_value<abi::int_t<8>>(cpp_int(-128))));
     RUN_TEST("int8 max",  (roundtrip_value<abi::int_t<8>>(cpp_int(127))));
     RUN_TEST("int24 min", (roundtrip_value<abi::int_t<24>>(cpp_int(- (1<<23) ))));
@@ -919,17 +921,6 @@ int main() try {
       (roundtrip_value<Outer>(std::make_tuple(
         std::make_tuple(cpp_int("424242"), true),
         std::vector<uint8_t>{0x11,0x22,0x33,0x44}
-      ))));
-
-    using Deep = abi::tuple<abi::dyn_array<abi::tuple<abi::bool_t, abi::bytes>>, abi::string_t>;
-    RUN_TEST("tuple<dyn_array<tuple<bool,bytes>>,string> ragged",
-      (roundtrip_value<Deep>(std::make_tuple(
-        std::vector<std::tuple<bool,std::vector<uint8_t>>>{
-          {true,  std::vector<uint8_t>{0xCA,0xFE}},
-          {false, std::vector<uint8_t>{}},
-          {true,  std::vector<uint8_t>(33,0x77)}
-        },
-        std::string("ok")
       ))));
 
     // ---------- Failure-path: corrupted offsets (should not crash) ----------
@@ -1047,27 +1038,28 @@ int main() try {
         std::cout << "  Would test Uniswap V3 pool slot0 at " << pool_address << "\n";
 
         // Test that our generated structs work correctly
-        abi::protocols::IUniswapV3Pool_Slot0 slot0{};
-        slot0.sqrtPriceX96 = boost::multiprecision::cpp_int("79228162514264337593543950336");  // 1.0 in Q64.96
+        using Slot0_Named = abi::protocols::IUniswapV3Pool_Slot0;
+        Slot0_Named slot0{};
+        slot0.sqrtPriceX96 = boost::multiprecision::cpp_int("79228162514264337593543950336");
         slot0.tick = boost::multiprecision::cpp_int("0");
-        slot0.observationIndex = boost::multiprecision::cpp_int("0");
-        slot0.observationCardinality = boost::multiprecision::cpp_int("1");
-        slot0.observationCardinalityNext = boost::multiprecision::cpp_int("1");
-        slot0.feeProtocol = boost::multiprecision::cpp_int("0");
+        slot0.observationIndex = uint16_t(0);
+        slot0.observationCardinality = uint16_t(1);
+        slot0.observationCardinalityNext = uint16_t(1);
+        slot0.feeProtocol = uint8_t(0);
         slot0.unlocked = true;
 
         // Test round-trip encoding/decoding
-        const size_t size = abi::encoded_size<abi::protocols::IUniswapV3Pool_Slot0>(slot0);
+        const size_t size = abi::encoded_size<Slot0_Named>(slot0);
         std::vector<uint8_t> buffer(size);
         abi::Error err;
 
-        if (!abi::encode_into<abi::protocols::IUniswapV3Pool_Slot0>(buffer.data(), buffer.size(), slot0, &err)) {
+        if (!abi::encode_into<Slot0_Named>(buffer.data(), buffer.size(), slot0, &err)) {
           std::cerr << "encode failed: " << err.message << "\n";
           return false;
         }
 
-        abi::protocols::IUniswapV3Pool_Slot0 decoded{};
-        if (!abi::decode_from<abi::protocols::IUniswapV3Pool_Slot0>(
+        Slot0_Named decoded{};
+        if (!abi::decode_from<Slot0_Named>(
             abi::BytesSpan(buffer.data(), buffer.size()), decoded, &err)) {
           std::cerr << "decode failed: " << err.message << "\n";
           return false;
@@ -1101,29 +1093,30 @@ int main() try {
   {
     using boost::multiprecision::cpp_int;
 
-    // Test 1: Basic named struct round-trip (IUniswapV3Pool_Slot0)
-    RUN_TEST("named struct: IUniswapV3Pool_Slot0 round-trip",
+    // Test 1: Basic tuple return round-trip (UniswapV3Pool_Slot0)
+    RUN_TEST("tuple return: UniswapV3Pool_Slot0 round-trip",
       ([&](){
-        abi::protocols::IUniswapV3Pool_Slot0 slot0{};
+        using Slot0_Named = abi::protocols::IUniswapV3Pool_Slot0;
+        Slot0_Named slot0{};
         slot0.sqrtPriceX96 = cpp_int("429512873912345678901234567890");
         slot0.tick = cpp_int("-12345");
-        slot0.observationIndex = cpp_int("42");
-        slot0.observationCardinality = cpp_int("100");
-        slot0.observationCardinalityNext = cpp_int("150");
-        slot0.feeProtocol = cpp_int("5");
+        slot0.observationIndex = uint16_t(42);
+        slot0.observationCardinality = uint16_t(100);
+        slot0.observationCardinalityNext = uint16_t(150);
+        slot0.feeProtocol = uint8_t(5);
         slot0.unlocked = true;
 
-        const size_t size = abi::encoded_size<abi::protocols::IUniswapV3Pool_Slot0>(slot0);
+        const size_t size = abi::encoded_size<Slot0_Named>(slot0);
         std::vector<uint8_t> buffer(size);
         abi::Error err;
 
-        if (!abi::encode_into<abi::protocols::IUniswapV3Pool_Slot0>(buffer.data(), buffer.size(), slot0, &err)) {
+        if (!abi::encode_into<Slot0_Named>(buffer.data(), buffer.size(), slot0, &err)) {
           std::cerr << "encode failed: " << err.message << "\n";
           return false;
         }
 
-        abi::protocols::IUniswapV3Pool_Slot0 decoded{};
-        if (!abi::decode_from<abi::protocols::IUniswapV3Pool_Slot0>(
+        Slot0_Named decoded{};
+        if (!abi::decode_from<Slot0_Named>(
             abi::BytesSpan(buffer.data(), buffer.size()), decoded, &err)) {
           std::cerr << "decode failed: " << err.message << "\n";
           return false;
@@ -1283,14 +1276,15 @@ int main() try {
     RUN_TEST("named struct: contract-prefixed names prevent conflicts",
       ([&](){
         // Test that different contracts can have same struct names without conflicts
-        // ERC20_BalanceOf and IUniswapV3Pool_Slot0 should coexist without issues
+        // For example, a function and a struct can have similar names.
+        // Let's use a real example from the generated code.
 
-        abi::protocols::ERC20_BalanceOf balance_of{};
-        abi::protocols::IUniswapV3Pool_Slot0 slot0{};
+        abi::protocols::ERC20_BalanceOf balance_of_fn{};
+        abi::protocols::ITickLens_PopulatedTick tick_struct{};
 
         // Both should compile and be usable
-        balance_of = abi::protocols::ERC20_BalanceOf{};  // Default constructible
-        slot0.unlocked = true;  // Field accessible
+        balance_of_fn = abi::protocols::ERC20_BalanceOf{};  // Default constructible
+        tick_struct.tick = 123;  // Field accessible
 
         return true;  // If we get here without compilation errors, test passes
       })());

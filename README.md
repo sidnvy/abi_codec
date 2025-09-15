@@ -11,7 +11,7 @@ A high-performance C++ library for Ethereum ABI encoding and decoding, with clea
 - **Clean Event Support** - Named field access only (no tuple compatibility)
 - **Validated against ethers.js** - All encodings tested for compatibility
 - **Real RPC testing** - Live Ethereum mainnet validation
-- **77 comprehensive tests** - Extensive test coverage including event validation
+- **96 comprehensive tests** - Extensive test coverage including event validation
 - **Named structs from ABI** - Clean, type-safe access to contract data
 - **Generic functions** - Flexible encoding/decoding for any schema
 - **Zero runtime overhead** - Template-based with compile-time optimization
@@ -99,21 +99,21 @@ abi::decode_from<abi::uint_t<256>>(span, decoded, &err);
 
 ```cpp
 // ERC20 transfer
-using Transfer = abi::protocols::Transfer;
+using ERC20_Transfer = abi::protocols::ERC20_Transfer;
 std::array<uint8_t, 20> recipient = {/* address bytes */};
 boost::multiprecision::cpp_int amount = boost::multiprecision::cpp_int("1000000000000000000"); // 1 ETH
 
 // Encode function call (includes 4-byte selector)
 std::vector<uint8_t> call_data;
-size_t call_size = Transfer::encoded_size(recipient, amount);
+size_t call_size = ERC20_Transfer::encoded_size(recipient, amount);
 call_data.resize(call_size);
 abi::Error err;
-Transfer::encode_call(call_data.data(), call_data.size(), recipient, amount, &err);
+ERC20_Transfer::encode_call(call_data.data(), call_data.size(), recipient, amount, &err);
 
 // Decode return value
 bool transfer_success;
 abi::BytesSpan return_data(/* RPC response */, /* size */);
-Transfer::decode_result(return_data, transfer_success, &err);
+ERC20_Transfer::decode_result(return_data, transfer_success, &err);
 ```
 
 ### Event Processing (Ethereum Logs)
@@ -224,25 +224,25 @@ namespace abi::protocols {
 
 ```cpp
 // Event wrapper (C++17 topic hash type)
-template<class Topic, class... DataSchemas>
+template<class Topic, class EventData>
 struct Event {
   // Event topic hash (32 bytes)
   static constexpr std::array<uint8_t,32> topic_hash = Topic::value;
-  using data_tuple_type = typename value_of<tuple<DataSchemas...>>::type;
 
   // Event data encoding/decoding (non-indexed parameters only)
   template<class... Vs>
   static size_t encoded_data_size(const Vs&... vs){
-    return encoded_size<data_tuple_type>(std::make_tuple(vs...));
+    return encoded_size<tuple<Vs...>>(std::make_tuple(vs...));
   }
 
   template<class... Vs>
   static bool encode_data(uint8_t* out, size_t cap, const Vs&... vs, Error* e = nullptr){
-    return encode_into<data_tuple_type>(out, cap, std::make_tuple(vs...), e);
+    return encode_into<tuple<Vs...>>(out, cap, std::make_tuple(vs...), e);
   }
 
-  static bool decode_data(BytesSpan in, data_tuple_type& out, Error* e = nullptr){
-    return decode_from<data_tuple_type>(in, out, e);
+  // Clean: Named struct decoding
+  static bool decode_data(BytesSpan in, EventData& out, Error* e = nullptr){
+    return traits<EventData>::decode(in, out, e);
   }
 
   // Utility to check if a topic matches this event
@@ -274,13 +274,10 @@ namespace abi::protocols {
 ### Event Data Structs (Auto-generated)
 
 ```cpp
-// Clean  NEW: Named event data structs (auto-generated from ABI)
+// Named event data structs (auto-generated from ABI)
 namespace abi::protocols {
     // ERC20 Transfer event data
-    struct ERC20_TransferEventData {
-        abi::cpp_t<uint_t<256>> value;
-        // ... to_tuple(), from_tuple() methods
-    };
+    struct ERC20_TransferEventData { abi::cpp_t<uint_t<256>> value; };
 
     // UniswapV3 Swap event data
     struct UniswapV3Pool_SwapEventData {
@@ -289,27 +286,20 @@ namespace abi::protocols {
         abi::cpp_t<uint_t<160>> sqrtPriceX96;
         abi::cpp_t<uint_t<128>> liquidity;
         abi::cpp_t<int_t<24>> tick;
-        // ... to_tuple(), from_tuple() methods
     };
 }
 ```
 
 ### Named Structs (Generated from ABI)
 ```cpp
-// Example: Uniswap V3 Pool Slot0
-struct IUniswapV3Pool_Slot0 {
-    boost::multiprecision::cpp_int sqrtPriceX96;
-    boost::multiprecision::cpp_int tick;
-    boost::multiprecision::cpp_int observationIndex;
-    boost::multiprecision::cpp_int observationCardinality;
-    boost::multiprecision::cpp_int observationCardinalityNext;
-    boost::multiprecision::cpp_int feeProtocol;
-    bool unlocked;
+// Example: Uniswap V3 Pool Slot0 and Ticks
+IUniswapV3Pool_Slot0 slot0;
+abi::decode_from<IUniswapV3Pool_Slot0>(data, slot0);
+std::cout << slot0.sqrtPriceX96 << ", tick=" << slot0.tick << ", unlocked=" << (slot0.unlocked?"true":"false") << "\n";
 
-    // Conversion to/from generic tuple
-    static tuple_type to_tuple(const IUniswapV3Pool_Slot0& s);
-    static IUniswapV3Pool_Slot0 from_tuple(const tuple_type& t);
-};
+IUniswapV3Pool_Ticks tick;
+UniswapV3Pool_Ticks::decode_result(ticks_resp, tick);
+std::cout << tick.liquidityGross << ", initialized=" << (tick.initialized?"true":"false") << "\n";
 ```
 
 ## Named vs Generic: Choose Your Approach
@@ -360,7 +350,7 @@ npm test     # Run all tests
 npm run test # Alternative test command
 ```
 
-**Test Coverage (77 tests):**
+**Test Coverage (96 tests):**
 - **Generic functions** - `encoded_size`, `encode_into` validation
 - **Named structs** - ABI-generated types round-trip testing
 - **Function calls** - Protocol-specific encoding/decoding
@@ -377,24 +367,24 @@ Auto-generated from ABI JSON files with clean named structs:
 
 ### ERC20 Protocol
 ```cpp
-using BalanceOf = abi::protocols::BalanceOf;
-using Transfer = abi::protocols::Transfer;
-using Approve = abi::protocols::Approve;
+using ERC20_BalanceOf = abi::protocols::ERC20_BalanceOf;
+using ERC20_Transfer = abi::protocols::ERC20_Transfer;
+using ERC20_Approve = abi::protocols::ERC20_Approve;
 
 // Clean function calls
 std::array<uint8_t, 20> addr = /* address */;
 boost::multiprecision::cpp_int amount = /* amount */;
-bool success = Transfer::encode_call(buffer, size, addr, amount, &err);
+bool success = ERC20_Transfer::encode_call(buffer, size, addr, amount, &err);
 ```
 
 ### Multicall3 Protocol
 ```cpp
-using Aggregate3 = abi::protocols::Aggregate3;
-using TryAggregate = abi::protocols::TryAggregate;
+using Multicall_Aggregate3 = abi::protocols::Multicall_Aggregate3;
+using Multicall_TryAggregate = abi::protocols::Multicall_TryAggregate;
 
 // Handle complex multicall returns
-std::vector<Multicall3_Result> results;
-Aggregate3::decode_result(response_data, results, &err);
+std::vector<abi::protocols::Multicall3_Result> results;
+Multicall_Aggregate3::decode_result(response_data, results, &err);
 ```
 
 ### UniswapV3 Protocol
@@ -427,10 +417,7 @@ if (TransferEvent::matches_topic(log.topics[0])) {
     TransferEvent::decode_data(log.data, transferData);
     std::cout << "Transfer value: " << transferData.value << " wei\n";
 
-    // Legacy: Decode using tuple (still works)
-    // TransferEvent::data_tuple_type eventData;
-    // TransferEvent::decode_data(log.data, eventData);
-    // auto value = std::get<0>(eventData);
+    // Named field access only
 }
 ```
 
@@ -451,10 +438,7 @@ if (SwapEvent::matches_topic(log.topics[0])) {
     std::cout << "Swap amounts: " << swapData.amount0 << " → " << swapData.amount1 << "\n";
     std::cout << "Price: " << swapData.sqrtPriceX96 << ", Tick: " << swapData.tick << "\n";
 
-    // Legacy: Tuple-based access still available
-    // SwapEvent::data_tuple_type swapTuple;
-    // SwapEvent::decode_data(log.data, swapTuple);
-    // auto [amount0, amount1, sqrtPriceX96, liquidity, tick] = swapTuple;
+    // Named field access only
 }
 ```
 
@@ -490,7 +474,7 @@ abi_codec/
 │   └── uniswap_v3_pool.json # Uniswap V3 Pool interface
 ├── examples/                 # Usage examples
 │   └── user_usage_clean.cpp # Comprehensive demonstration
-├── tests/                    # Test suite (77 tests)
+├── tests/                    # Test suite (96 tests)
 │   └── abi_tests.cpp        # All functionality tests
 ├── scripts/                  # Generation & testing scripts
 │   ├── generate_from_abi_json.mjs # Generate protocols.h
@@ -524,19 +508,17 @@ abi::encode_into<abi::uint_t<256>>(buffer, size, value);
 IUniswapV3Pool_Slot0 slot0;
 abi::decode_from<IUniswapV3Pool_Slot0>(data, slot0);
 
-// Clean  SIMPLIFIED: Event processing with named fields
+// Event processing with named fields
 using TransferEvent = abi::protocols::ERC20_TransferEvent;
 using TransferEventData = abi::protocols::ERC20_TransferEventData;
 
 if (TransferEvent::matches_topic(log.topics[0])) {
-    // Clean  PRIMARY: Decode into named struct (recommended!)
+    // Decode into named struct
     TransferEventData transferData;
     TransferEvent::decode_data(log.data, transferData);
     std::cout << "Value: " << transferData.value << std::endl;
 
-    // LEGACY: Tuple-based access still available
-    // TransferEvent::data_tuple_type eventData;
-    // TransferEvent::decode_data(log.data, eventData);
+    // Named field access only
 }
 ```
 

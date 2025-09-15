@@ -281,6 +281,24 @@ function toCamelCase(str) {
 function generateNamedSchemas() {
   let output = '';
 
+  // Precompute short type names like "Contract_Struct" for membership checks
+  const namedStructTypeNames = new Set(
+    Array.from(namedStructs.values()).map(s => `${s.contract}_${s.name}`)
+  );
+
+  // Map schema type string to field's concrete C++ value type.
+  // Avoid abi::cpp_t for dyn_array of named structs to prevent early value_of instantiation.
+  function fieldValueCppType(schemaTypeStr) {
+    const m = schemaTypeStr.match(/^dyn_array\s*<\s*([A-Za-z0-9_]+)\s*>$/);
+    if (m) {
+      const inner = m[1];
+      if (namedStructTypeNames.has(inner)) {
+        return `std::vector<${inner}>`;
+      }
+    }
+    return `abi::cpp_t<${schemaTypeStr}>`;
+  }
+
   for (const [fullName, structInfo] of namedStructs) {
     const structName = `${structInfo.contract}_${structInfo.name}`;
     const schemaTypes = structInfo.fields.map(field => cppTypeForParam(field));
@@ -293,16 +311,21 @@ function generateNamedSchemas() {
     for (const field of structInfo.fields) {
       const fieldType = cppTypeForParam(field);
       const fieldName = toCamelCase(field.name || `f${structInfo.fields.indexOf(field)}`);
-      output += `  abi::cpp_t<${fieldType}> ${fieldName};\n`;
+      const valueType = fieldValueCppType(fieldType);
+      output += `  ${valueType} ${fieldName};\n`;
     }
 
     // Underlying ABI schema
     output += `\n  // Underlying ABI schema\n`;
     output += `  using schema = ${schemaTuple};\n`;
 
+    // Values tuple type (concrete C++ value types)
+    const valuesTypes = schemaTypes.map(t => fieldValueCppType(t));
+    output += `  using values = std::tuple<${valuesTypes.join(', ')}>;\n`;
+
     // to_tuple conversion
-    output += `\n  // Conversion to underlying tuple\n`;
-    output += `  static abi::value_of<schema>::type to_tuple(const ${structName}& s) {\n`;
+    output += `\n  // Conversion to underlying tuple values\n`;
+    output += `  static values to_tuple(const ${structName}& s) {\n`;
     output += `    return std::make_tuple(\n`;
     structInfo.fields.forEach((field, index) => {
       const fieldName = toCamelCase(field.name || `f${index}`);
@@ -313,8 +336,8 @@ function generateNamedSchemas() {
     output += `  }\n`;
 
     // from_tuple conversion
-    output += `\n  // Conversion from underlying tuple\n`;
-    output += `  static ${structName} from_tuple(const abi::value_of<schema>::type& t) {\n`;
+    output += `\n  // Conversion from underlying tuple values\n`;
+    output += `  static ${structName} from_tuple(const values& t) {\n`;
     output += `    ${structName} s{};\n`;
     structInfo.fields.forEach((field, index) => {
       const fieldName = toCamelCase(field.name || `f${index}`);
@@ -436,6 +459,7 @@ async function generateProtocolsHeader() {
   let header = `#pragma once
 
 #include "abi.h"
+#include <vector>
 
 // Auto-generated from ABI JSON files on ${new Date().toISOString()}
 // Run: node scripts/generate_from_abi_json.mjs
@@ -524,13 +548,62 @@ namespace protocols {
           const hexBytes = selectorToHex(selector);
           header += `struct ${selectorName} { static constexpr std::array<uint8_t,4> value{{${hexBytes}}}; }; // "${signature}"\n`;
 
+          // If the function has a composite return (multiple outputs or tuple),
+          // synthesize a named struct with clean field names and use it as return type.
+          let synthesizedReturnType = null;
+          const outputs = item.outputs || [];
+          const isTupleReturn = outputs.length > 1 || (outputs.length === 1 && outputs[0].type === 'tuple');
+
+          if (isTupleReturn) {
+            // Determine base struct name from function name
+            const baseName = toPascalCase(item.name);
+            const interfaceContract = `I${contractName}`;
+            const fullName = `${interfaceContract}.${baseName}`;
+
+            if (!namedStructs.has(fullName)) {
+              const fields = [];
+              if (outputs.length === 1 && outputs[0].type === 'tuple') {
+                // Use components of the tuple
+                const comps = outputs[0].components || [];
+                for (const comp of comps) {
+                  fields.push({
+                    name: comp.name,
+                    type: comp.type,
+                    internalType: comp.internalType,
+                    components: comp.components,
+                  });
+                }
+              } else {
+                // Multiple outputs
+                for (const out of outputs) {
+                  fields.push({
+                    name: out.name,
+                    type: out.type,
+                    internalType: out.internalType,
+                    components: out.components,
+                  });
+                }
+              }
+
+              namedStructs.set(fullName, {
+                contract: interfaceContract,
+                name: baseName,
+                fields,
+              });
+              console.log(`Synthesized function-output struct: ${fullName}`);
+            }
+
+            synthesizedReturnType = `${interfaceContract}_${baseName}`;
+          }
+
           // Generate function typedef
           const cppType = generateCppType(item);
           if (cppType) {
             const functionName = `${contractName}_${toPascalCase(item.name)}`;
 
-            // Store function info - return type first, then arguments
-            const args = [cppType.returnType, ...cppType.inputTypes].join(', ');
+            // Override return type if synthesized
+            const returnType = synthesizedReturnType || cppType.returnType;
+            const args = [returnType, ...cppType.inputTypes].join(', ');
             header += `using ${functionName} = Fn<${selectorName}, ${args}>;\n`;
           }
 

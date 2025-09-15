@@ -17,7 +17,7 @@ using UniswapV3Pool_SwapEvent = abi::protocols::UniswapV3Pool_SwapEvent;
 using UniswapV3Pool_SwapEventData = abi::protocols::UniswapV3Pool_SwapEventData;
 using UniswapV3Pool_MintEvent = abi::protocols::UniswapV3Pool_MintEvent;
 using UniswapV3Pool_BurnEvent = abi::protocols::UniswapV3Pool_BurnEvent;
-using IUniswapV3Pool_Tick = abi::protocols::IUniswapV3Pool_Tick;
+using IUniswapV3Pool_Ticks = abi::protocols::IUniswapV3Pool_Ticks;
 using Multicall3_Result = abi::protocols::Multicall3_Result;
 using ITickLens_PopulatedTick = abi::protocols::ITickLens_PopulatedTick;
 using Multicall3_Call = abi::protocols::Multicall3_Call;
@@ -81,20 +81,20 @@ void demonstrateCleanUsage() {
     std::cout << "2. Uniswap V3 Pool ticks() return value:\n";
     
     std::vector<uint8_t> encoded_tick;
-    IUniswapV3Pool_Tick tick_result;
+    IUniswapV3Pool_Ticks tick_result;
     abi::BytesSpan tick_data(encoded_tick.data(), encoded_tick.size());
     
     // The ticks function takes an int24 parameter and returns a Tick struct
     boost::multiprecision::cpp_int tick_param = 12345; // int24 parameter
     
     // Option 1: Using abi::decode_from (recommended)
-    bool decoded1 = abi::decode_from<IUniswapV3Pool_Tick>(tick_data, tick_result);
+    bool decoded1 = abi::decode_from<IUniswapV3Pool_Ticks>(tick_data, tick_result);
     if (decoded1) {
-        std::cout << "  * Decoded using abi::decode_from<IUniswapV3Pool_Tick>\n";
+        std::cout << "  * Decoded using abi::decode_from<IUniswapV3Pool_Ticks>\n";
     }
 
     // Option 2: Using the Fn struct's decode method
-    IUniswapV3Pool_Tick tick_result2;
+    IUniswapV3Pool_Ticks tick_result2;
     bool decoded2 = UniswapV3Pool_Ticks::decode_result(tick_data, tick_result2);
     if (decoded2) {
         std::cout << "  *  Decoded using UniswapV3Pool_Ticks::decode_result\n";
@@ -203,7 +203,7 @@ void demonstrateCleanUsage() {
     complex_call.target = {0x88, 0xe6, 0xa0, 0xc2, 0xdd, 0xd2, 0x6f, 0xe3, 0x34, 0xb4, 0x70, 0x1b, 0x28, 0x0e, 0x59, 0x6a, 0x2a, 0x2b, 0x39, 0x44}; // USDC
     complex_call.allowFailure = false;
     complex_call.value = boost::multiprecision::cpp_int("1000000"); // 1 USDC (6 decimals)
-    complex_call.callData = {0xa9, 0x05, 0x9c, 0xbb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd9, 0xba, 0x89, 0x42, 0x0a, 0x56, 0x9c, 0x9e, 0xac, 0x9c, 0x7e, 0xa9, 0x0c, 0x4d, 0x9e, 0x7f, 0x8d, 0x9b, 0xc6, 0x6b, 0xe2, 0x9c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // transfer(address,uint256)
+    complex_call.callData = {0xa9, 0x05, 0x9c, 0xbb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd9, 0xba, 0x89, 0x42, 0x0a, 0x56, 0x9c, 0x9e, 0xac, 0x9c, 0x7e, 0xa9, 0x0c, 0x4d, 0x9e, 0x7f, 0x8d, 0x9b, 0xc6, 0x6b, 0xe2, 0x9c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // transfer(address,uint256)
     
     std::cout << "  Created Multicall3_Call3Value:\n";
     std::cout << "    target: 0x";
@@ -242,7 +242,7 @@ void demonstrateCleanUsage() {
     }
 
     // Example: Encoding a Tick struct
-    IUniswapV3Pool_Tick tick_to_encode;
+    IUniswapV3Pool_Ticks tick_to_encode;
     tick_to_encode.liquidityGross = boost::multiprecision::cpp_int("1000000000000000000"); // 1e18
     tick_to_encode.liquidityNet = boost::multiprecision::cpp_int("-500000000000000000"); // -5e17
     tick_to_encode.feeGrowthOutside0X128 = boost::multiprecision::cpp_int("123456789012345678901234567890");
@@ -253,9 +253,9 @@ void demonstrateCleanUsage() {
     tick_to_encode.initialized = true;
 
     std::vector<uint8_t> encoded_tick_new;
-    const size_t tick_size = abi::encoded_size<IUniswapV3Pool_Tick>(tick_to_encode);
+    const size_t tick_size = abi::encoded_size<IUniswapV3Pool_Ticks>(tick_to_encode);
     encoded_tick_new.resize(tick_size);
-    if (abi::encode_into<IUniswapV3Pool_Tick>(encoded_tick_new.data(), encoded_tick_new.size(), tick_to_encode)) {
+    if (abi::encode_into<IUniswapV3Pool_Ticks>(encoded_tick_new.data(), encoded_tick_new.size(), tick_to_encode)) {
         std::cout << "  *  Encoded Tick using abi::encode_into<>\n";
         std::cout << "    Encoded size: " << encoded_tick_new.size() << " bytes\n";
     }
@@ -295,12 +295,12 @@ void demonstrateCleanUsage() {
 
     // Round-trip Tick
     std::vector<uint8_t> tick_roundtrip;
-    const size_t tick_roundtrip_size = abi::encoded_size<IUniswapV3Pool_Tick>(tick_to_encode);
+    const size_t tick_roundtrip_size = abi::encoded_size<IUniswapV3Pool_Ticks>(tick_to_encode);
     tick_roundtrip.resize(tick_roundtrip_size);
-    if (abi::encode_into<IUniswapV3Pool_Tick>(tick_roundtrip.data(), tick_roundtrip.size(), tick_to_encode)) {
-        IUniswapV3Pool_Tick decoded_tick;
+    if (abi::encode_into<IUniswapV3Pool_Ticks>(tick_roundtrip.data(), tick_roundtrip.size(), tick_to_encode)) {
+        IUniswapV3Pool_Ticks decoded_tick;
         abi::BytesSpan decode_span(tick_roundtrip.data(), tick_roundtrip.size());
-        if (abi::decode_from<IUniswapV3Pool_Tick>(decode_span, decoded_tick)) {
+        if (abi::decode_from<IUniswapV3Pool_Ticks>(decode_span, decoded_tick)) {
             bool matches = (tick_to_encode.liquidityGross == decoded_tick.liquidityGross &&
                            tick_to_encode.liquidityNet == decoded_tick.liquidityNet &&
                            tick_to_encode.initialized == decoded_tick.initialized);
